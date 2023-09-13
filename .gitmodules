@@ -1,3 +1,9 @@
 [submodule "thirdparty/stuff"]
 	path = thirdparty/stuff
 	url = git@github.com:xor-shift/stuff.git
+[submodule "thirdparty/sdl"]
+	path = thirdparty/sdl
+	url = git@github.com:libsdl-org/SDL.git
+[submodule "thirdparty/vk-bootstrap"]
+	path = thirdparty/vk-bootstrap
+	url = git@github.com:charles-lunarg/vk-bootstrap.git
