@@ -1,3 +1,5 @@
+#include <vulkan_functions.hpp>
+
 #include <stuff/core.hpp>
 #include <stuff/expected.hpp>
 #include <stuff/scope.hpp>
@@ -381,8 +383,78 @@ private:
     }
 };
 
+static auto
+vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* data, void* user_data)
+  -> VkBool32 {
+    auto level = spdlog::level::n_levels;
+
+    static constexpr std::pair<int, spdlog::level::level_enum> level_lookup[]{
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, spdlog::level::err},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT, spdlog::level::warn},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, spdlog::level::info},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, spdlog::level::debug},
+    };
+
+    if (auto it = std::ranges::find_if(level_lookup, [severity](auto p) { return (p.first & severity) != 0; }); it != std::ranges::end(level_lookup)) {
+        level = it->second;
+    }
+
+    if (level == spdlog::level::n_levels) {
+        spdlog::warn("vulkan debug messenger callback called with an invalid level: {:#08X}", static_cast<u32>(severity));
+        level = spdlog::level::info;
+    }
+
+    char message_type_arr[]{'G', 'V', 'P', 'D', '\0'};
+
+    static constexpr std::pair<VkFlags, usize> type_lookup[]{
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, 0uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, 1uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, 2uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, 3uz},
+    };
+
+    for (auto [flag, index] : type_lookup) {
+        if ((type & flag) == 0) {
+            message_type_arr[index] = '-';
+        }
+    }
+
+    const auto message_type = std::string_view(message_type_arr, std::size(message_type_arr));
+
+    spdlog::log(level, fmt::runtime("[{}]: {}"), message_type, data->pMessage);
+
+    return (VkBool32) false;
+}
+
 auto main() -> int {
     spdlog::set_level(spdlog::level::debug);
+
+    auto functions = ({
+        auto&& res = vulkan_functions::make();
+
+        if (!res) {
+            spdlog::error("failed to load vulkan library, error: {}", res.error());
+            return 1;
+        }
+
+        std::move(*res);
+    });
+
+    if (auto res = functions.load_instanceless_functions(); !res) {
+        spdlog::error("failed to load instanceless vulkan functions, error: {}", res.error());
+        return 1;
+    }
+
+    const auto vk_info = ({
+        auto&& res = vulkan_information::make();
+
+        if (!res) {
+            spdlog::error("failed to gather vulkan information, error code: {}", (int)res.error());
+            return 1;
+        }
+
+        std::move(*res);
+    });
 
     const auto application_info = VkApplicationInfo{
       .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -392,8 +464,6 @@ auto main() -> int {
       .engineVersion = VK_MAKE_VERSION(0, 0, 0),
       .apiVersion = VK_API_VERSION_1_0,
     };
-
-    const auto vk_info = *vulkan_information::make();
 
     for (auto layers_range = vk_info.layers(); auto const& [layer_no, layer] : layers_range | std::views::enumerate) {
         spdlog::debug("Layer #{}", layer_no);
@@ -429,6 +499,15 @@ auto main() -> int {
     auto extensions_range = desired_extensions | std::views::filter([&vk_info](auto* ext_name) { return (bool)vk_info.extension(ext_name); });
     auto extensions = std::vector<const char*>{std::ranges::begin(extensions_range), std::ranges::end(extensions_range)};
 
+    const auto debug_utils_messenger_create_info = VkDebugUtilsMessengerCreateInfoEXT{
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+      .pNext = nullptr,
+      .flags = 0,
+      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+      .pfnUserCallback = vulkan_debug_messenger,
+    };
+
     const auto instance_create_info = VkInstanceCreateInfo{
       .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       .pNext = nullptr,
@@ -440,6 +519,17 @@ auto main() -> int {
       .ppEnabledExtensionNames = extensions.data(),
     };
 
-    auto* instance = VkInstance{};
-    const auto create_instance_res = vkCreateInstance(&instance_create_info, nullptr, &instance);
+     auto* instance = VkInstance{};
+     const auto create_instance_res = functions.vkCreateInstance(&instance_create_info, nullptr, &instance);
+
+     if (auto res = functions.load_instance_functions(instance); !res) {
+        spdlog::error("failed to load instanced vulkan functions, error: {}", res.error());
+        return 1;
+     }
+
+     auto* debug_messenger = VkDebugUtilsMessengerEXT{};
+     functions.vkCreateDebugUtilsMessengerEXT(instance, &debug_utils_messenger_create_info, nullptr, &debug_messenger);
+
+     functions.vkDestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
+     functions.vkDestroyInstance(instance, nullptr);
 }

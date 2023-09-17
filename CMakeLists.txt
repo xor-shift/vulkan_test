@@ -13,7 +13,12 @@ add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/stuff)
 add_subdirectory(thirdparty/vk-bootstrap)
 
-add_executable(vulkan_test main.cpp)
+add_executable(vulkan_test
+        main.cpp
+        src/vulkan_functions.cpp)
+
+target_include_directories(vulkan_test PUBLIC
+        inc)
 
 target_link_libraries(${PROJECT_NAME}
         stf::core stf::expected stf::scope
