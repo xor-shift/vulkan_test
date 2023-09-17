@@ -7,3 +7,9 @@
 [submodule "thirdparty/vk-bootstrap"]
 	path = thirdparty/vk-bootstrap
 	url = git@github.com:charles-lunarg/vk-bootstrap.git
+[submodule "thirdparty/spdlog"]
+	path = thirdparty/spdlog
+	url = git@github.com:gabime/spdlog.git
+[submodule "thirdparty/fmt"]
+	path = thirdparty/fmt
+	url = git@github.com:fmtlib/fmt.git

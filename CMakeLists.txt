@@ -3,16 +3,23 @@ project(vulkan_test)
 
 set(CMAKE_CXX_STANDARD 23)
 
+option(SPDLOG_FMT_EXTERNAL ON)
+
+find_package(Vulkan REQUIRED)
+
+add_subdirectory(thirdparty/fmt)
 add_subdirectory(thirdparty/sdl)
+add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/stuff)
 add_subdirectory(thirdparty/vk-bootstrap)
-find_package(Vulkan REQUIRED)
 
 add_executable(vulkan_test main.cpp)
 
 target_link_libraries(${PROJECT_NAME}
-        stf::core
-        stf::scope
+        stf::core stf::expected stf::scope
+        fmt::fmt spdlog::spdlog
         Vulkan::Vulkan SDL3::SDL3
         vk-bootstrap::vk-bootstrap
 )
+
+sanitize(vulkan_test)

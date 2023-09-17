@@ -1,42 +1,26 @@
 #include <stuff/core.hpp>
+#include <stuff/expected.hpp>
 #include <stuff/scope.hpp>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
 #include <VkBootstrap.h>
-#include <vulkan/vulkan.hpp>
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
+#include <vulkan/vulkan.h>
 
 #include <chrono>
 #include <cmath>
+#include <expected>
 #include <iostream>
+#include <ranges>
 
 #define UNNAMED3(_name) const auto _unnamed_##_name
 #define UNNAMED2(_name) UNNAMED3(_name)
 #define UNNAMED UNNAMED2(__COUNTER__)
 
-struct thing {
-    thing(u32 width, u32 height)
-        : m_extent(width, height) {
-        init_sdl();
-    }
-
-private:
-    vk::Extent2D m_extent;
-
-    SDL_Window* m_window = nullptr;
-    vk::SurfaceKHR m_surface{(VkSurfaceKHR)VK_NULL_HANDLE};
-
-    void init_sdl() {}
-
-    void init_vk_instance() {}
-
-    void init_vk_surface() {}
-
-    void init_vk_device() {}
-};
-
-auto main() -> int {
-    constexpr auto extent = vk::Extent2D{600, 400};
+auto old_main() -> int {
+    constexpr auto extent = VkExtent2D{600, 400};
 
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         std::cerr << "Failed to initialise SDL: " << SDL_GetError() << '\n';
@@ -46,7 +30,7 @@ auto main() -> int {
     UNNAMED = stf::scope_exit{[] { SDL_Quit(); }};
 
     auto* const window = SDL_CreateWindow(
-      "vulkan test",                                                        //
+      "vulkan test",                                                    //
       static_cast<int>(extent.width), static_cast<int>(extent.height),  //
       static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN)
     );
@@ -297,4 +281,165 @@ auto main() -> int {
     vkResetFences(device, 1, &render_fence);
 
     return 0;
+}
+
+template<typename T, typename Fn, typename... Args>
+auto read_vulkan_vector(Fn&& fn, Args&&... args) -> std::expected<std::vector<T>, VkResult> {
+    auto count = (u32)0;
+    const auto size_read_res = fn(std::forward<Args>(args)..., &count, nullptr);
+
+    if (size_read_res != VK_SUCCESS) {
+        return std::unexpected{size_read_res};
+    }
+
+    auto vec = std::vector<T>(count);
+    const auto vec_read_res = fn(std::forward<Args>(args)..., &count, vec.data());
+
+    if (vec_read_res == VK_INCOMPLETE) {
+        return read_vulkan_vector<T>(std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+    if (vec_read_res != VK_SUCCESS) {
+        return std::unexpected{vec_read_res};
+    }
+
+    return vec;
+}
+
+struct vulkan_information {
+    static auto make() -> std::expected<vulkan_information, VkResult> {
+        auto&& available_layers = TRYX(read_vulkan_vector<VkLayerProperties>(&vkEnumerateInstanceLayerProperties));
+
+        auto layer_extensions = std::vector<std::vector<VkExtensionProperties>>{};
+        layer_extensions.reserve(available_layers.size());
+
+        for (auto const& layer : available_layers) {
+            auto&& avail_extensions_for_layer = TRYX(read_vulkan_vector<VkExtensionProperties>(&vkEnumerateInstanceExtensionProperties, layer.layerName));
+            layer_extensions.emplace_back(std::move(avail_extensions_for_layer));
+        }
+
+        auto ret = vulkan_information{};
+        ret.m_layers.reserve(available_layers.size());
+
+        for (auto&& [layer_no, layer] : std::move(available_layers) | std::views::enumerate) {
+            auto&& elem = layer_type{std::move(layer), std::move(layer_extensions[layer_no])};
+            ret.m_layers.emplace_back(std::move(elem));
+        }
+
+        return ret;
+    }
+
+    constexpr auto layer(std::string_view layer_name) const -> std::optional<VkLayerProperties> {
+        return layer_internal(layer_name).transform([](auto const& layer) { return layer.get().first; });
+    }
+
+    constexpr auto extension(std::string_view extension_name) const -> std::optional<VkExtensionProperties> {
+        auto extension_properties = m_layers | std::views::values | std::views::join;
+        auto it = std::ranges::find_if(extension_properties, [extension_name](auto const& extension) { return extension_name == std::string_view(extension.extensionName); });
+
+        if (it == std::ranges::end(extension_properties)) {
+            return std::nullopt;
+        }
+
+        return *it;
+    }
+
+    constexpr auto extension(std::string_view extension_name, std::string_view layer_name) const -> std::optional<VkExtensionProperties> {
+        return layer_internal(layer_name).and_then([extension_name](auto const& layer) -> std::optional<VkExtensionProperties> {
+            auto it = std::ranges::find_if(layer.get().second, [extension_name](auto const& layer) { return extension_name == std::string_view(layer.extensionName); });
+
+            if (it == std::ranges::end(layer.get().second)) {
+                return std::nullopt;
+            }
+
+            return *it;
+        });
+    }
+
+    constexpr auto layers() const { return m_layers | std::views::keys; }
+
+    constexpr auto extensions() const { return m_layers | std::views::values | std::views::join; }
+
+    constexpr auto extensions(std::string_view layer_name) const {
+        return layer_internal(layer_name)  //
+          .transform([](auto const& layer) { return layer.get().second | std::views::all; });
+        //.value_or([] { return std::ranges::empty_view<VkExtensionProperties>{}; });
+    }
+
+private:
+    using layer_type = std::pair<VkLayerProperties, std::vector<VkExtensionProperties>>;
+    std::vector<layer_type> m_layers{};
+
+    constexpr auto layer_internal(std::string_view layer_name) const -> std::optional<std::reference_wrapper<const layer_type>> {
+        auto it = std::ranges::find_if(m_layers, [layer_name](auto const& layer) { return layer_name == std::string_view(layer.first.layerName); });
+
+        if (it == std::ranges::end(m_layers)) {
+            return std::nullopt;
+        }
+
+        return *it;
+    }
+};
+
+auto main() -> int {
+    spdlog::set_level(spdlog::level::debug);
+
+    const auto application_info = VkApplicationInfo{
+      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+      .pApplicationName = "vulkan test",
+      .applicationVersion = VK_MAKE_VERSION(0, 0, 0),
+      .pEngineName = "voxels",
+      .engineVersion = VK_MAKE_VERSION(0, 0, 0),
+      .apiVersion = VK_API_VERSION_1_0,
+    };
+
+    const auto vk_info = *vulkan_information::make();
+
+    for (auto layers_range = vk_info.layers(); auto const& [layer_no, layer] : layers_range | std::views::enumerate) {
+        spdlog::debug("Layer #{}", layer_no);
+        spdlog::debug("\tName        : {}", layer.layerName);
+        spdlog::debug("\tSpec version: {}.{}.{}", VK_VERSION_MAJOR(layer.specVersion), VK_VERSION_MINOR(layer.specVersion), VK_VERSION_PATCH(layer.specVersion));
+        spdlog::debug(
+          "\tImpl version: {}.{}.{}",  //
+          VK_VERSION_MAJOR(layer.implementationVersion), VK_VERSION_MINOR(layer.implementationVersion), VK_VERSION_PATCH(layer.implementationVersion)
+        );
+        spdlog::debug("\tDescription : {}", layer.description);
+
+        for (auto extensions_range = *vk_info.extensions(layer.layerName); auto const& [extension_no, extension] : extensions_range | std::views::enumerate) {
+            spdlog::debug("\tExtension #{}", extension_no);
+            spdlog::debug("\t\tName        : {}", extension.extensionName);
+            spdlog::debug("\t\tSpec version: {}.{}.{}", VK_VERSION_MAJOR(extension.specVersion), VK_VERSION_MINOR(extension.specVersion), VK_VERSION_PATCH(extension.specVersion));
+        }
+    }
+
+    static constexpr const char* desired_layers[] = {
+      "VK_LAYER_KHRONOS_validation",
+    };
+    auto layers_range = desired_layers | std::views::filter([&vk_info](auto* layer_name) { return (bool)vk_info.layer(layer_name); });
+    auto layers = std::vector<const char*>{std::ranges::begin(layers_range), std::ranges::end(layers_range)};
+
+    static constexpr const char* desired_extensions[] = {
+      VK_EXT_DEBUG_UTILS_EXTENSION_NAME,              //
+      VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,  //
+      "VK_KHR_xcb_surface",                           //
+      "VK_KHR_xlib_surface",                          //
+      "VK_KHR_wayland_surface",                       //
+    };
+
+    auto extensions_range = desired_extensions | std::views::filter([&vk_info](auto* ext_name) { return (bool)vk_info.extension(ext_name); });
+    auto extensions = std::vector<const char*>{std::ranges::begin(extensions_range), std::ranges::end(extensions_range)};
+
+    const auto instance_create_info = VkInstanceCreateInfo{
+      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0,
+      .pApplicationInfo = &application_info,
+      .enabledLayerCount = static_cast<u32>(layers.size()),
+      .ppEnabledLayerNames = layers.data(),
+      .enabledExtensionCount = static_cast<u32>(extensions.size()),
+      .ppEnabledExtensionNames = extensions.data(),
+    };
+
+    auto* instance = VkInstance{};
+    const auto create_instance_res = vkCreateInstance(&instance_create_info, nullptr, &instance);
 }
