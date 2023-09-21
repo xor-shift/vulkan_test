@@ -15,7 +15,9 @@ add_subdirectory(thirdparty/vk-bootstrap)
 
 add_executable(vulkan_test
         main.cpp
-        src/vulkan_functions.cpp)
+        src/log.cpp
+        src/vulkan_functions.cpp
+)
 
 target_include_directories(vulkan_test PUBLIC
         inc)
@@ -26,5 +28,11 @@ target_link_libraries(${PROJECT_NAME}
         Vulkan::Vulkan SDL3::SDL3
         vk-bootstrap::vk-bootstrap
 )
+
+target_compile_definitions(${PROJECT_NAME} PUBLIC
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        VULKAN_HPP_NO_EXCEPTIONS)
+
+target_compile_options(${PROJECT_NAME} PUBLIC -Wall -Wextra)
 
 sanitize(vulkan_test)

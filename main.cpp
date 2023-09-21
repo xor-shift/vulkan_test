@@ -1,3 +1,4 @@
+#include <log.hpp>
 #include <vulkan_functions.hpp>
 
 #include <stuff/core.hpp>
@@ -7,9 +8,8 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 #include <VkBootstrap.h>
-#include <fmt/format.h>
-#include <spdlog/spdlog.h>
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_to_string.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -21,269 +21,7 @@
 #define UNNAMED2(_name) UNNAMED3(_name)
 #define UNNAMED UNNAMED2(__COUNTER__)
 
-auto old_main() -> int {
-    constexpr auto extent = VkExtent2D{600, 400};
-
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::cerr << "Failed to initialise SDL: " << SDL_GetError() << '\n';
-        throw std::runtime_error("failed to initialize SDL");
-    }
-
-    UNNAMED = stf::scope_exit{[] { SDL_Quit(); }};
-
-    auto* const window = SDL_CreateWindow(
-      "vulkan test",                                                    //
-      static_cast<int>(extent.width), static_cast<int>(extent.height),  //
-      static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN)
-    );
-    UNNAMED = stf::scope_exit{[window] { SDL_DestroyWindow(window); }};
-
-    vkb::InstanceBuilder builder;
-    auto inst_ret = builder
-                      .set_app_name("vulkan test")      //
-                      .request_validation_layers(true)  //
-                      .require_api_version(1, 1, 0)     //
-                      .use_default_debug_messenger()    //
-                      .build();
-
-    auto vkb_instance = inst_ret.value();
-
-    auto* instance = vkb_instance.instance;
-    auto* messenger = vkb_instance.debug_messenger;
-
-    UNNAMED = stf::scope_exit{[instance, messenger] {
-        vkb::destroy_debug_utils_messenger(instance, messenger);
-        vkDestroyInstance(instance, nullptr);
-    }};
-
-    auto* surface = VkSurfaceKHR{};
-    SDL_Vulkan_CreateSurface(window, instance, &surface);
-
-    UNNAMED = stf::scope_exit{[instance, surface] { vkDestroySurfaceKHR(instance, surface, nullptr); }};
-
-    auto selector = vkb::PhysicalDeviceSelector{vkb_instance};
-    auto physical_device = selector
-                             .set_minimum_version(1, 1)  //
-                             .set_surface(surface)       //
-                             .select()                   //
-                             .value();
-
-    auto device_builder = vkb::DeviceBuilder{physical_device};
-    auto vkb_device = device_builder.build().value();
-
-    auto* device = vkb_device.device;
-    auto* chosen_gpu = physical_device.physical_device;
-
-    UNNAMED = stf::scope_exit{[device] { vkDestroyDevice(device, nullptr); }};
-
-    auto* graphics_queue = vkb_device.get_queue(vkb::QueueType::graphics).value();
-    auto graphics_queue_family = vkb_device.get_queue_index(vkb::QueueType::graphics).value();
-
-    vkb::SwapchainBuilder swapchainBuilder{chosen_gpu, device, surface};
-
-    vkb::Swapchain vkbSwapchain = swapchainBuilder
-                                    .use_default_format_selection()
-                                    // use vsync present mode
-                                    .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-                                    .set_desired_extent(extent.width, extent.height)
-                                    .build()
-                                    .value();
-
-    auto* swap_chain = vkbSwapchain.swapchain;
-    auto swap_chain_images = vkbSwapchain.get_images().value();
-    auto swap_chain_image_views = vkbSwapchain.get_image_views().value();
-
-    UNNAMED = stf::scope_exit{[device, swap_chain] { vkDestroySwapchainKHR(device, swap_chain, nullptr); }};
-    UNNAMED = stf::scope_exit{[device, &imgs = swap_chain_image_views] { std::ranges::for_each(imgs, [device](auto view) { vkDestroyImageView(device, view, nullptr); }); }};
-
-    const auto swap_chain_image_format = vkbSwapchain.image_format;
-
-    auto command_pool_info = VkCommandPoolCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-      .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-      .queueFamilyIndex = graphics_queue_family,
-    };
-
-    auto* command_pool = VkCommandPool{};
-    vkCreateCommandPool(device, &command_pool_info, nullptr, &command_pool);
-    UNNAMED = stf::scope_exit{[device, command_pool] { vkDestroyCommandPool(device, command_pool, nullptr); }};
-
-    auto command_alloc_info = VkCommandBufferAllocateInfo{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      .pNext = nullptr,
-      .commandPool = command_pool,
-      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = 1,
-    };
-
-    auto* main_command_buffer = VkCommandBuffer{};
-    vkAllocateCommandBuffers(device, &command_alloc_info, &main_command_buffer);
-
-    auto color_attachment = VkAttachmentDescription{
-      .format = swap_chain_image_format,
-      .samples = VK_SAMPLE_COUNT_1_BIT,
-      .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-      .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-      .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-      .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-      .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-    };
-
-    auto color_attachment_ref = VkAttachmentReference{
-      .attachment = 0,
-      .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-    };
-
-    auto subpass = VkSubpassDescription{
-      .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-      .colorAttachmentCount = 1,
-      .pColorAttachments = &color_attachment_ref,
-    };
-
-    auto render_pass_create_info = VkRenderPassCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-      .attachmentCount = 1,
-      .pAttachments = &color_attachment,
-      .subpassCount = 1,
-      .pSubpasses = &subpass,
-    };
-
-    auto* render_pass = VkRenderPass{};
-    vkCreateRenderPass(device, &render_pass_create_info, nullptr, &render_pass);
-    UNNAMED = stf::scope_exit{[device, render_pass] { vkDestroyRenderPass(device, render_pass, nullptr); }};
-
-    VkFramebufferCreateInfo fb_info = {
-      .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-      .pNext = nullptr,
-      .renderPass = render_pass,
-      .attachmentCount = 1,
-      .width = extent.width,
-      .height = extent.height,
-      .layers = 1,
-    };
-
-    const auto swapchain_imagecount = swap_chain_images.size();
-    auto framebuffers = std::vector<VkFramebuffer>(swapchain_imagecount);
-    UNNAMED = stf::scope_exit{[device, &framebuffers] { std::ranges::for_each(framebuffers, [device](auto buffer) { vkDestroyFramebuffer(device, buffer, nullptr); }); }};
-
-    for (int i = 0; i < swapchain_imagecount; i++) {
-        fb_info.pAttachments = &swap_chain_image_views[i];
-        vkCreateFramebuffer(device, &fb_info, nullptr, &framebuffers[i]);
-    }
-
-    auto fenceCreateInfo = VkFenceCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
-
-    auto* render_fence = VkFence{};
-    vkCreateFence(device, &fenceCreateInfo, nullptr, &render_fence);
-    UNNAMED = stf::scope_exit{[device, render_fence] { vkDestroyFence(device, render_fence, nullptr); }};
-
-    auto semaphoreCreateInfo = VkSemaphoreCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-    };
-
-    auto* present_semaphore = VkSemaphore{};
-    vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &present_semaphore);
-    UNNAMED = stf::scope_exit{[device, present_semaphore] { vkDestroySemaphore(device, present_semaphore, nullptr); }};
-
-    auto* render_semaphore = VkSemaphore{};
-    vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &render_semaphore);
-    UNNAMED = stf::scope_exit{[device, render_semaphore] { vkDestroySemaphore(device, render_semaphore, nullptr); }};
-
-    static constexpr auto a_second = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
-    static constexpr auto color_period = 120.f;
-
-    auto frame_number = 0u;
-    for (auto running = true; running;) {
-        for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            }
-        }
-
-        vkWaitForFences(device, 1, &render_fence, (VkBool32) true, a_second);
-        vkResetFences(device, 1, &render_fence);
-
-        auto swapchain_image_index = (u32)0;
-        vkAcquireNextImageKHR(device, swap_chain, a_second, present_semaphore, nullptr, &swapchain_image_index);
-
-        vkResetCommandBuffer(main_command_buffer, 0);
-
-        auto command_begin_info = VkCommandBufferBeginInfo{
-          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-          .pNext = nullptr,
-          .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-          .pInheritanceInfo = nullptr,
-        };
-
-        vkBeginCommandBuffer(main_command_buffer, &command_begin_info);
-
-        auto clear_value = VkClearValue{};
-        float flash = std::abs(std::sin(static_cast<float>(frame_number) / color_period));
-        clear_value.color = {{0.f, 0.f, flash, 1.f}};
-
-        auto render_pass_info = VkRenderPassBeginInfo{
-          .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-          .pNext = nullptr,
-          .renderPass = render_pass,
-          .framebuffer = framebuffers[swapchain_image_index],
-          .renderArea{
-            .offset{},
-            .extent{
-              .width = extent.width,
-              .height = extent.height,
-            },
-          },
-          .clearValueCount = 1,
-          .pClearValues = &clear_value,
-        };
-
-        vkCmdBeginRenderPass(main_command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-        vkCmdEndRenderPass(main_command_buffer);
-        vkEndCommandBuffer(main_command_buffer);
-
-        const auto waitStage = (VkPipelineStageFlags)VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-
-        auto submit = VkSubmitInfo{
-          .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 1,
-          .pWaitSemaphores = &present_semaphore,
-          .pWaitDstStageMask = &waitStage,
-          .commandBufferCount = 1,
-          .pCommandBuffers = &main_command_buffer,
-          .signalSemaphoreCount = 1,
-          .pSignalSemaphores = &render_semaphore,
-        };
-
-        vkQueueSubmit(graphics_queue, 1, &submit, render_fence);
-
-        auto present_info = VkPresentInfoKHR{
-          .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-          .pNext = nullptr,
-          .waitSemaphoreCount = 1,
-          .pWaitSemaphores = &render_semaphore,
-          .swapchainCount = 1,
-          .pSwapchains = &swap_chain,
-          .pImageIndices = &swapchain_image_index,
-        };
-        vkQueuePresentKHR(graphics_queue, &present_info);
-
-        frame_number++;
-    }
-
-    vkWaitForFences(device, 1, &render_fence, (VkBool32) true, a_second);
-    vkResetFences(device, 1, &render_fence);
-
-    return 0;
-}
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE;
 
 template<typename T, typename Fn, typename... Args>
 auto read_vulkan_vector(Fn&& fn, Args&&... args) -> std::expected<std::vector<T>, VkResult> {
@@ -383,67 +121,24 @@ private:
     }
 };
 
-static auto
-vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* data, void* user_data)
-  -> VkBool32 {
-    auto level = spdlog::level::n_levels;
+template<typename T>
+constexpr auto vk_res_to_expected(vk::ResultValue<T>&& val) -> std::expected<T, vk::Result> {
+    auto&& [result, value] = std::move(val);
 
-    static constexpr std::pair<int, spdlog::level::level_enum> level_lookup[]{
-      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, spdlog::level::err},
-      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT, spdlog::level::warn},
-      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, spdlog::level::info},
-      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, spdlog::level::debug},
-    };
-
-    if (auto it = std::ranges::find_if(level_lookup, [severity](auto p) { return (p.first & severity) != 0; }); it != std::ranges::end(level_lookup)) {
-        level = it->second;
+    if (result == vk::Result::eSuccess) {
+        return std::move(value);
     }
 
-    if (level == spdlog::level::n_levels) {
-        spdlog::warn("vulkan debug messenger callback called with an invalid level: {:#08X}", static_cast<u32>(severity));
-        level = spdlog::level::info;
-    }
-
-    char message_type_arr[]{'G', 'V', 'P', 'D', '\0'};
-
-    static constexpr std::pair<VkFlags, usize> type_lookup[]{
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, 0uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, 1uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, 2uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, 3uz},
-    };
-
-    for (auto [flag, index] : type_lookup) {
-        if ((type & flag) == 0) {
-            message_type_arr[index] = '-';
-        }
-    }
-
-    const auto message_type = std::string_view(message_type_arr, std::size(message_type_arr));
-
-    spdlog::log(level, fmt::runtime("[{}]: {}"), message_type, data->pMessage);
-
-    return (VkBool32) false;
+    return std::unexpected<vk::Result>(result);
 }
+
+#define TRYX_VK(_expr) TRYX(vk_res_to_expected(std::move((_expr))))
 
 auto main() -> int {
     spdlog::set_level(spdlog::level::debug);
 
-    auto functions = ({
-        auto&& res = vulkan_functions::make();
-
-        if (!res) {
-            spdlog::error("failed to load vulkan library, error: {}", res.error());
-            return 1;
-        }
-
-        std::move(*res);
-    });
-
-    if (auto res = functions.load_instanceless_functions(); !res) {
-        spdlog::error("failed to load instanceless vulkan functions, error: {}", res.error());
-        return 1;
-    }
+    auto loader = *vk_dynamic_loader::make();
+    vk::defaultDispatchLoaderDynamic.init(loader.vkGetInstanceProcAddr);
 
     const auto vk_info = ({
         auto&& res = vulkan_information::make();
@@ -456,29 +151,13 @@ auto main() -> int {
         std::move(*res);
     });
 
-    const auto application_info = VkApplicationInfo{
-      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-      .pApplicationName = "vulkan test",
-      .applicationVersion = VK_MAKE_VERSION(0, 0, 0),
-      .pEngineName = "voxels",
-      .engineVersion = VK_MAKE_VERSION(0, 0, 0),
-      .apiVersion = VK_API_VERSION_1_0,
-    };
-
     for (auto layers_range = vk_info.layers(); auto const& [layer_no, layer] : layers_range | std::views::enumerate) {
         spdlog::debug("Layer #{}", layer_no);
-        spdlog::debug("\tName        : {}", layer.layerName);
-        spdlog::debug("\tSpec version: {}.{}.{}", VK_VERSION_MAJOR(layer.specVersion), VK_VERSION_MINOR(layer.specVersion), VK_VERSION_PATCH(layer.specVersion));
-        spdlog::debug(
-          "\tImpl version: {}.{}.{}",  //
-          VK_VERSION_MAJOR(layer.implementationVersion), VK_VERSION_MINOR(layer.implementationVersion), VK_VERSION_PATCH(layer.implementationVersion)
-        );
-        spdlog::debug("\tDescription : {}", layer.description);
+        vxl::log(layer, 1);
 
         for (auto extensions_range = *vk_info.extensions(layer.layerName); auto const& [extension_no, extension] : extensions_range | std::views::enumerate) {
             spdlog::debug("\tExtension #{}", extension_no);
-            spdlog::debug("\t\tName        : {}", extension.extensionName);
-            spdlog::debug("\t\tSpec version: {}.{}.{}", VK_VERSION_MAJOR(extension.specVersion), VK_VERSION_MINOR(extension.specVersion), VK_VERSION_PATCH(extension.specVersion));
+            vxl::log(extension, 2);
         }
     }
 
@@ -499,37 +178,156 @@ auto main() -> int {
     auto extensions_range = desired_extensions | std::views::filter([&vk_info](auto* ext_name) { return (bool)vk_info.extension(ext_name); });
     auto extensions = std::vector<const char*>{std::ranges::begin(extensions_range), std::ranges::end(extensions_range)};
 
-    const auto debug_utils_messenger_create_info = VkDebugUtilsMessengerCreateInfoEXT{
-      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-      .pNext = nullptr,
-      .flags = 0,
-      .messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-      .messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-      .pfnUserCallback = vulkan_debug_messenger,
-    };
+    const auto application_info = vk::ApplicationInfo("vulkan test", VK_MAKE_VERSION(0, 0, 1), "voxels", VK_MAKE_VERSION(0, 0, 1), VK_API_VERSION_1_1);
 
-    const auto instance_create_info = VkInstanceCreateInfo{
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pNext = nullptr,
-      .flags = 0,
-      .pApplicationInfo = &application_info,
-      .enabledLayerCount = static_cast<u32>(layers.size()),
-      .ppEnabledLayerNames = layers.data(),
-      .enabledExtensionCount = static_cast<u32>(extensions.size()),
-      .ppEnabledExtensionNames = extensions.data(),
-    };
+    const auto instance_create_info = vk::InstanceCreateInfo({}, &application_info, layers, extensions, nullptr);
+    auto instance = ({
+        auto&& [result, value] = vk::createInstance(instance_create_info);
 
-     auto* instance = VkInstance{};
-     const auto create_instance_res = functions.vkCreateInstance(&instance_create_info, nullptr, &instance);
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a vk::Instance, error code: {}", vk::to_string(result));
+            return 1;
+        }
 
-     if (auto res = functions.load_instance_functions(instance); !res) {
-        spdlog::error("failed to load instanced vulkan functions, error: {}", res.error());
+        value;
+    });
+
+    UNNAMED = stf::scope_exit([&instance] { instance.destroy(); });
+
+    vk::defaultDispatchLoaderDynamic.init(instance);
+
+    const auto debug_utils_messenger_create_info = vk::DebugUtilsMessengerCreateInfoEXT(
+      {},                                                                                                                                                       //
+      vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,  //
+      vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation,  //
+      vxl::vulkan_debug_messenger                                                                                                                               //
+    );
+
+    auto debug_utils_messenger = ({
+        auto&& [result, value] = instance.createDebugUtilsMessengerEXT(debug_utils_messenger_create_info);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a vk::DebugUtilsMessengerEXT, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+    UNNAMED = stf::scope_exit([&instance, &debug_utils_messenger] { instance.destroy(debug_utils_messenger); });
+
+    const auto physical_devices = ({
+        auto&& [result, value] = instance.enumeratePhysicalDevices();
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not enumerate physical devices, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+
+    for (auto const& [no, device] : physical_devices | std::views::enumerate) {
+        const auto properties = device.getProperties();
+        spdlog::debug("Device #{}:", no);
+        vxl::log(properties, 1);
+
+        const auto queue_family_properties = device.getQueueFamilyProperties();
+        for (auto const& [no, family] : queue_family_properties | std::views::enumerate) {
+            spdlog::debug("\tQueue family #{}", no);
+            vxl::log(family, 2);
+        }
+    }
+
+    const auto chosen_device = physical_devices[0];
+
+    spdlog::info("a physical device was chosen:");
+    vxl::log(chosen_device.getProperties(), 1, spdlog::level::info);
+
+    const auto chosen_family = chosen_device.getQueueFamilyProperties()[0];
+    const auto family_index = 0;
+
+    spdlog::info("a queue family was chosen at index {}:", family_index);
+    vxl::log(chosen_family, 1, spdlog::level::info);
+
+    auto queue_priority = 0.f;
+    const auto queue_create_info = vk::DeviceQueueCreateInfo({}, static_cast<u32>(family_index), 1, &queue_priority);
+    const auto device_create_info = vk::DeviceCreateInfo({}, queue_create_info);
+    const auto device = ({
+        auto&& [result, value] = chosen_device.createDevice(device_create_info);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a vk::Device, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+    UNNAMED = stf::scope_exit([&device] { device.destroy(); });
+
+    spdlog::debug("device was created");
+
+    const auto command_pool_create_info = vk::CommandPoolCreateInfo({}, family_index);
+    const auto command_pool = ({
+      auto&& [result, value] = device.createCommandPool(command_pool_create_info);
+
+      if (result != vk::Result::eSuccess) {
+          spdlog::error("could not create a vk::CommandPool, error code: {}", vk::to_string(result));
+          return 1;
+      }
+
+      value;
+    });
+    UNNAMED = stf::scope_exit([&device, &command_pool] { device.destroyCommandPool(command_pool); });
+
+    const auto command_buffer_allocate_info = vk::CommandBufferAllocateInfo(command_pool, vk::CommandBufferLevel::ePrimary, 1);
+    const auto command_buffers = ({
+      auto&& [result, value] = device.allocateCommandBuffers(command_buffer_allocate_info);
+
+      if (result != vk::Result::eSuccess) {
+          spdlog::error("could not create a vector of vk::CommandBuffer, error code: {}", vk::to_string(result));
+          return 1;
+      }
+
+      value;
+    });
+    UNNAMED = stf::scope_exit([&device, &command_pool, &command_buffers] { device.freeCommandBuffers(command_pool, command_buffers); });
+
+    auto const& command_buffer = command_buffers[0];
+
+    constexpr auto extent = vk::Extent2D{600, 400};
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        spdlog::error("failed to initialize SDL: {}", SDL_GetError());
         return 1;
-     }
+    }
+    UNNAMED = stf::scope_exit{[] { SDL_Quit(); }};
 
-     auto* debug_messenger = VkDebugUtilsMessengerEXT{};
-     functions.vkCreateDebugUtilsMessengerEXT(instance, &debug_utils_messenger_create_info, nullptr, &debug_messenger);
+    auto* const window = SDL_CreateWindow(
+      "vulkan test",                                                    //
+      static_cast<int>(extent.width), static_cast<int>(extent.height),  //
+      static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN)
+    );
+    UNNAMED = stf::scope_exit{[window] { SDL_DestroyWindow(window); }};
 
-     functions.vkDestroyDebugUtilsMessengerEXT(instance, debug_messenger, nullptr);
-     functions.vkDestroyInstance(instance, nullptr);
+    auto vk_surface = ({
+        auto* surface_tmp = VkSurfaceKHR{};
+        SDL_Vulkan_CreateSurface(window, instance, &surface_tmp);
+        if (surface_tmp == nullptr) {
+            spdlog::error("failed to create a vulkan surface through SDL, error: {}", SDL_GetError());
+            return 1;
+        }
+
+        auto&& vk_surface_tmp = vk::SurfaceKHR(surface_tmp);
+        vk_surface_tmp;
+    });
+    UNNAMED = stf::scope_exit{[&instance, &vk_surface] { instance.destroy(vk_surface); }};
+
+    auto frame_number = 0u;
+    for (auto running = true; running;) {
+        for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
+            if (event.type == SDL_EVENT_QUIT) {
+                running = false;
+            }
+        }
+    }
 }

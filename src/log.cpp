@@ -1,0 +1,122 @@
+#include <log.hpp>
+
+#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_to_string.hpp>
+
+namespace vxl {
+
+auto vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT* data, void*)
+  -> VkBool32 {
+    auto level = spdlog::level::n_levels;
+
+    static constexpr std::pair<int, spdlog::level::level_enum> level_lookup[]{
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT, spdlog::level::err},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT, spdlog::level::warn},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT, spdlog::level::info},
+      {VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT, spdlog::level::debug},
+    };
+
+    if (auto it = std::ranges::find_if(level_lookup, [severity](auto p) { return (p.first & severity) != 0; }); it != std::ranges::end(level_lookup)) {
+        level = it->second;
+    }
+
+    if (level == spdlog::level::n_levels) {
+        spdlog::warn("vulkan debug messenger callback called with an invalid level: {:#08X}", static_cast<u32>(severity));
+        level = spdlog::level::info;
+    }
+
+    char message_type_arr[]{'G', 'V', 'P', 'D'};
+
+    static constexpr std::pair<VkFlags, usize> type_lookup[]{
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, 0uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, 1uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, 2uz},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, 3uz},
+    };
+
+    for (auto [flag, index] : type_lookup) {
+        if ((type & flag) == 0) {
+            message_type_arr[index] = '-';
+        }
+    }
+
+    const auto message_type = std::string_view(message_type_arr, std::size(message_type_arr));
+
+    spdlog::log(level, fmt::runtime("[{}]: {}"), message_type, data->pMessage);
+
+    return (VkBool32) false;
+}
+
+void log(vk::LayerProperties const& layer, usize tabulation, spdlog::level::level_enum severity) {
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}\", layer.layerName"), "", tabulation, std::string_view(layer.layerName.data()));
+    spdlog::log(
+      severity, fmt::runtime("{:\t>{}}Spec version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(layer.specVersion), VK_VERSION_MINOR(layer.specVersion),
+      VK_VERSION_PATCH(layer.specVersion)
+    );
+    spdlog::log(
+      severity, fmt::runtime("{:\t>{}}Impl version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(layer.implementationVersion), VK_VERSION_MINOR(layer.implementationVersion),
+      VK_VERSION_PATCH(layer.implementationVersion)
+    );
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Description : {}"), "", tabulation, std::string_view(layer.description.data()));
+}
+
+void log(vk::ExtensionProperties const& extension, usize tabulation, spdlog::level::level_enum severity) {
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}\", layer.layerName"), "", tabulation, std::string_view(extension.extensionName.data()));
+    spdlog::log(
+      severity, fmt::runtime("{:\t>{}}Spec version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(extension.specVersion), VK_VERSION_MINOR(extension.specVersion),
+      VK_VERSION_PATCH(extension.specVersion)
+    );
+}
+
+void log(vk::PhysicalDeviceProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
+    spdlog::log(
+      severity, fmt::runtime("{:\t>{}}API Version   : {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion),
+      VK_VERSION_PATCH(props.apiVersion)
+    );
+    spdlog::log(
+      severity, fmt::runtime("{:\t>{}}Driver Version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion),
+      VK_VERSION_PATCH(props.driverVersion)
+    );
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Vendor ID     : {:08X}"), "", tabulation, props.vendorID);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Device ID     : {:08X}"), "", tabulation, props.deviceID);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Type   : {}"), "", tabulation, vk::to_string(props.deviceType));
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Name   : {}"), "", tabulation, std::string_view(props.deviceName.data()));
+}
+
+void log(vk::QueueFamilyProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
+    static constexpr std::pair<vk::QueueFlagBits, std::string_view> queue_flag_names[]{
+      {vk::QueueFlagBits::eGraphics, "graphics"},
+      {vk::QueueFlagBits::eCompute, "compute"},
+      {vk::QueueFlagBits::eTransfer, "transfer"},
+      {vk::QueueFlagBits::eSparseBinding, "sparse binding"},
+      {vk::QueueFlagBits::eProtected, "protected"},
+      {vk::QueueFlagBits::eVideoDecodeKHR, "video decode (KHR)"},
+      {vk::QueueFlagBits::eOpticalFlowNV, "optical flow (NV)"},
+    };
+
+    auto ss = std::stringstream{};
+    for (bool first = true; auto const& [bit, name] : queue_flag_names) {
+        if ((props.queueFlags & bit) == vk::QueueFlagBits{}) {
+            continue;
+        }
+
+        if (!first) {
+            ss << " | ";
+        }
+        first = false;
+
+        ss << name;
+    }
+
+    auto flag_names_concat = ss.str();
+    if (flag_names_concat.empty()) {
+        flag_names_concat = "[no flag bits set]";
+    }
+
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Queue flags     : {}"), "", tabulation, flag_names_concat);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Queue count     : {}"), "", tabulation, props.queueCount);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}TSV bits        : {:08X}"), "", tabulation, props.timestampValidBits);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Min. granularity: {}"), "", tabulation, props.minImageTransferGranularity);
+}
+
+}  // namespace vxl

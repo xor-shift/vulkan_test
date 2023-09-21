@@ -10,46 +10,25 @@
 #include <expected>
 #include <string_view>
 
-struct vulkan_functions {
-    static auto make() -> std::expected<vulkan_functions, std::string_view>;
+struct vk_dynamic_loader {
+    static auto make() -> std::expected<vk_dynamic_loader, std::string_view>;
+
+    ~vk_dynamic_loader() {
+        close_dl(m_dl);
+    }
 
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
 
-    auto load_instanceless_functions() -> std::expected<usize, std::string_view>;
-    auto load_instance_functions(VkInstance instance) -> std::expected<usize, std::string_view>;
+    template<typename Fn>
+    auto getProcAddress(const char* name) const -> Fn {
+        auto* res = get_dl_symbol<Fn>(name);
 
-    PFN_vkEnumerateInstanceExtensionProperties vkEnumerateInstanceExtensionProperties = nullptr;
-    PFN_vkEnumerateInstanceLayerProperties vkEnumerateInstanceLayerProperties = nullptr;
-    PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = nullptr;
-    PFN_vkCreateInstance vkCreateInstance = nullptr;
+        if (!res) {
+            spdlog::warn("requested vulkan function \"{}\" returned nullptr", name);
+        }
 
-    PFN_vkDestroyInstance vkDestroyInstance = nullptr;
-
-    PFN_vkEnumeratePhysicalDevices vkEnumeratePhysicalDevices = nullptr;
-    PFN_vkGetPhysicalDeviceFeatures vkGetPhysicalDeviceFeatures = nullptr;
-    PFN_vkGetPhysicalDeviceFeatures2 vkGetPhysicalDeviceFeatures2 = nullptr;
-    PFN_vkGetPhysicalDeviceFeatures2KHR vkGetPhysicalDeviceFeatures2KHR = nullptr;
-    PFN_vkGetPhysicalDeviceFormatProperties vkGetPhysicalDeviceFormatProperties = nullptr;
-    PFN_vkGetPhysicalDeviceImageFormatProperties vkGetPhysicalDeviceImageFormatProperties = nullptr;
-    PFN_vkGetPhysicalDeviceProperties vkGetPhysicalDeviceProperties = nullptr;
-    PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = nullptr;
-    PFN_vkGetPhysicalDeviceQueueFamilyProperties vkGetPhysicalDeviceQueueFamilyProperties = nullptr;
-    PFN_vkGetPhysicalDeviceQueueFamilyProperties2 vkGetPhysicalDeviceQueueFamilyProperties2 = nullptr;
-    PFN_vkGetPhysicalDeviceMemoryProperties vkGetPhysicalDeviceMemoryProperties = nullptr;
-    PFN_vkGetPhysicalDeviceFormatProperties2 vkGetPhysicalDeviceFormatProperties2 = nullptr;
-    PFN_vkGetPhysicalDeviceMemoryProperties2 vkGetPhysicalDeviceMemoryProperties2 = nullptr;
-
-    PFN_vkGetDeviceProcAddr vkGetDeviceProcAddr = nullptr;
-    PFN_vkCreateDevice vkCreateDevice = nullptr;
-    PFN_vkEnumerateDeviceExtensionProperties vkEnumerateDeviceExtensionProperties = nullptr;
-
-    PFN_vkDestroySurfaceKHR vkDestroySurfaceKHR = &::vkDestroySurfaceKHR;  // FIXME: hack
-    PFN_vkGetPhysicalDeviceSurfaceSupportKHR vkGetPhysicalDeviceSurfaceSupportKHR = &::vkGetPhysicalDeviceSurfaceSupportKHR;
-    PFN_vkGetPhysicalDeviceSurfaceFormatsKHR vkGetPhysicalDeviceSurfaceFormatsKHR = &::vkGetPhysicalDeviceSurfaceFormatsKHR;
-    PFN_vkGetPhysicalDeviceSurfacePresentModesKHR vkGetPhysicalDeviceSurfacePresentModesKHR = &::vkGetPhysicalDeviceSurfacePresentModesKHR;
-
-    PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = nullptr;
-    PFN_vkDestroyDebugUtilsMessengerEXT vkDestroyDebugUtilsMessengerEXT = nullptr;
+        return res;
+    }
 
 private:
 #if defined(__linux__) || defined(__APPLE__)
