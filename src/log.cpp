@@ -1,7 +1,66 @@
 #include <log.hpp>
 
+#include <ranges>
+
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_to_string.hpp>
+
+namespace {
+
+template<typename Flags, typename FlagBit, usize N>
+constexpr auto make_flags_short(std::span<const std::pair<FlagBit, char>, N> lookup, Flags flags) -> std::array<char, N> {
+    auto arr = std::array<char, N>{};
+    std::ranges::copy(lookup | std::views::values, arr.begin());
+
+    for (auto const& [index, bit] : lookup | std::views::keys | std::views::enumerate) {
+        if ((flags & bit) != Flags {}) {
+            continue;
+        }
+
+        arr[index] = '-';
+    }
+
+    return arr;
+}
+
+template<typename Flags, typename FlagBit, usize N, typename It>
+constexpr void make_flags_short(std::span<const std::pair<FlagBit, char>, N> lookup, Flags flags, It out) {
+    auto arr = make_flags_short(lookup, flags);
+    std::ranges::copy(arr, out);
+}
+
+template<typename Flags, typename FlagBit, usize N, typename It>
+constexpr void make_flags_long(std::span<const std::pair<FlagBit, std::string_view>, N> lookup, Flags flags, It out, std::string_view if_empty = "[no bits set]") {
+    auto separator = " | "sv;
+
+    auto first = true;
+    for (auto const& [bit, name] : lookup) {
+        if ((flags & bit) == Flags {}) {
+            continue;
+        }
+
+        if (!first) {
+            std::ranges::copy(separator, out);
+        }
+        first = false;
+
+        std::ranges::copy(name, out);
+    }
+
+    if (first) {
+        std::ranges::copy(if_empty, out);
+    }
+}
+
+template<typename Flags, typename FlagBit, usize N>
+auto make_flags_long(std::span<const std::pair<FlagBit, std::string_view>, N> lookup, Flags flags, std::string_view if_empty = "[no bits set]") -> std::string {
+    auto ret = std::string {};
+    make_flags_long(lookup, flags, back_inserter(ret), if_empty);
+    return ret;
+}
+
+
+}
 
 namespace vxl {
 
@@ -25,22 +84,15 @@ auto vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkD
         level = spdlog::level::info;
     }
 
-    char message_type_arr[]{'G', 'V', 'P', 'D'};
-
-    static constexpr std::pair<VkFlags, usize> type_lookup[]{
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, 0uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, 1uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, 2uz},
-      {VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, 3uz},
+    static constexpr std::pair<VkDebugUtilsMessageTypeFlagsEXT, char> message_type_lookup[]{
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT, 'G'},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT, 'V'},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT, 'P'},
+      {VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT, 'D'},
     };
 
-    for (auto [flag, index] : type_lookup) {
-        if ((type & flag) == 0) {
-            message_type_arr[index] = '-';
-        }
-    }
-
-    const auto message_type = std::string_view(message_type_arr, std::size(message_type_arr));
+    const auto message_type_arr = make_flags_short(std::span(message_type_lookup), type);
+    const auto message_type = std::string_view(message_type_arr);
 
     spdlog::log(level, fmt::runtime("[{}]: {}"), message_type, data->pMessage);
 
@@ -84,7 +136,7 @@ void log(vk::PhysicalDeviceProperties const& props, usize tabulation, spdlog::le
 }
 
 void log(vk::QueueFamilyProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
-    static constexpr std::pair<vk::QueueFlagBits, std::string_view> queue_flag_names[]{
+    static constexpr std::pair<vk::QueueFlagBits, std::string_view> queue_flags_lookup[]{
       {vk::QueueFlagBits::eGraphics, "graphics"},
       {vk::QueueFlagBits::eCompute, "compute"},
       {vk::QueueFlagBits::eTransfer, "transfer"},
@@ -94,26 +146,7 @@ void log(vk::QueueFamilyProperties const& props, usize tabulation, spdlog::level
       {vk::QueueFlagBits::eOpticalFlowNV, "optical flow (NV)"},
     };
 
-    auto ss = std::stringstream{};
-    for (bool first = true; auto const& [bit, name] : queue_flag_names) {
-        if ((props.queueFlags & bit) == vk::QueueFlagBits{}) {
-            continue;
-        }
-
-        if (!first) {
-            ss << " | ";
-        }
-        first = false;
-
-        ss << name;
-    }
-
-    auto flag_names_concat = ss.str();
-    if (flag_names_concat.empty()) {
-        flag_names_concat = "[no flag bits set]";
-    }
-
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Queue flags     : {}"), "", tabulation, flag_names_concat);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Queue flags     : {}"), "", tabulation, make_flags_long(std::span(queue_flags_lookup), props.queueFlags));
     spdlog::log(severity, fmt::runtime("{:\t>{}}Queue count     : {}"), "", tabulation, props.queueCount);
     spdlog::log(severity, fmt::runtime("{:\t>{}}TSV bits        : {:08X}"), "", tabulation, props.timestampValidBits);
     spdlog::log(severity, fmt::runtime("{:\t>{}}Min. granularity: {}"), "", tabulation, props.minImageTransferGranularity);

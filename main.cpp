@@ -60,6 +60,7 @@ struct vulkan_information {
 
         auto ret = vulkan_information{};
         ret.m_layers.reserve(available_layers.size());
+        ret.m_extensions = TRYX(read_vulkan_vector<VkExtensionProperties>(&vkEnumerateInstanceExtensionProperties, nullptr));
 
         for (auto&& [layer_no, layer] : std::move(available_layers) | std::views::enumerate) {
             auto&& elem = layer_type{std::move(layer), std::move(layer_extensions[layer_no])};
@@ -74,31 +75,30 @@ struct vulkan_information {
     }
 
     constexpr auto extension(std::string_view extension_name) const -> std::optional<VkExtensionProperties> {
-        auto extension_properties = m_layers | std::views::values | std::views::join;
-        auto it = std::ranges::find_if(extension_properties, [extension_name](auto const& extension) { return extension_name == std::string_view(extension.extensionName); });
+        auto iter = std::ranges::find_if(m_extensions, [extension_name](auto const& extension) { return extension_name == std::string_view(extension.extensionName); });
 
-        if (it == std::ranges::end(extension_properties)) {
+        if (iter == std::ranges::end(m_extensions)) {
             return std::nullopt;
         }
 
-        return *it;
+        return *iter;
     }
 
     constexpr auto extension(std::string_view extension_name, std::string_view layer_name) const -> std::optional<VkExtensionProperties> {
         return layer_internal(layer_name).and_then([extension_name](auto const& layer) -> std::optional<VkExtensionProperties> {
-            auto it = std::ranges::find_if(layer.get().second, [extension_name](auto const& layer) { return extension_name == std::string_view(layer.extensionName); });
+            auto iter = std::ranges::find_if(layer.get().second, [extension_name](auto const& layer) { return extension_name == std::string_view(layer.extensionName); });
 
-            if (it == std::ranges::end(layer.get().second)) {
+            if (iter == std::ranges::end(layer.get().second)) {
                 return std::nullopt;
             }
 
-            return *it;
+            return *iter;
         });
     }
 
     constexpr auto layers() const { return m_layers | std::views::keys; }
 
-    constexpr auto extensions() const { return m_layers | std::views::values | std::views::join; }
+    constexpr auto extensions() const { return m_extensions | std::views::all; }
 
     constexpr auto extensions(std::string_view layer_name) const {
         return layer_internal(layer_name)  //
@@ -109,6 +109,7 @@ struct vulkan_information {
 private:
     using layer_type = std::pair<VkLayerProperties, std::vector<VkExtensionProperties>>;
     std::vector<layer_type> m_layers{};
+    std::vector<VkExtensionProperties> m_extensions{};
 
     constexpr auto layer_internal(std::string_view layer_name) const -> std::optional<std::reference_wrapper<const layer_type>> {
         auto it = std::ranges::find_if(m_layers, [layer_name](auto const& layer) { return layer_name == std::string_view(layer.first.layerName); });
@@ -170,6 +171,7 @@ auto main() -> int {
     static constexpr const char* desired_extensions[] = {
       VK_EXT_DEBUG_UTILS_EXTENSION_NAME,              //
       VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,  //
+      "VK_KHR_surface",                               //
       "VK_KHR_xcb_surface",                           //
       "VK_KHR_xlib_surface",                          //
       "VK_KHR_wayland_surface",                       //
@@ -238,22 +240,26 @@ auto main() -> int {
         }
     }
 
-    const auto chosen_device = physical_devices[0];
+    const auto physical_device = physical_devices[0];
 
     spdlog::info("a physical device was chosen:");
-    vxl::log(chosen_device.getProperties(), 1, spdlog::level::info);
+    vxl::log(physical_device.getProperties(), 1, spdlog::level::info);
 
-    const auto chosen_family = chosen_device.getQueueFamilyProperties()[0];
+    const auto queue_family = physical_device.getQueueFamilyProperties()[0];
     const auto family_index = 0;
 
     spdlog::info("a queue family was chosen at index {}:", family_index);
-    vxl::log(chosen_family, 1, spdlog::level::info);
+    vxl::log(queue_family, 1, spdlog::level::info);
+
+    static constexpr const char* desired_device_extensions[] = {
+      "VK_KHR_swapchain",  //
+    };
 
     auto queue_priority = 0.f;
     const auto queue_create_info = vk::DeviceQueueCreateInfo({}, static_cast<u32>(family_index), 1, &queue_priority);
-    const auto device_create_info = vk::DeviceCreateInfo({}, queue_create_info);
+    const auto device_create_info = vk::DeviceCreateInfo({}, queue_create_info, {}, desired_device_extensions);
     const auto device = ({
-        auto&& [result, value] = chosen_device.createDevice(device_create_info);
+        auto&& [result, value] = physical_device.createDevice(device_create_info);
 
         if (result != vk::Result::eSuccess) {
             spdlog::error("could not create a vk::Device, error code: {}", vk::to_string(result));
@@ -268,27 +274,27 @@ auto main() -> int {
 
     const auto command_pool_create_info = vk::CommandPoolCreateInfo({}, family_index);
     const auto command_pool = ({
-      auto&& [result, value] = device.createCommandPool(command_pool_create_info);
+        auto&& [result, value] = device.createCommandPool(command_pool_create_info);
 
-      if (result != vk::Result::eSuccess) {
-          spdlog::error("could not create a vk::CommandPool, error code: {}", vk::to_string(result));
-          return 1;
-      }
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a vk::CommandPool, error code: {}", vk::to_string(result));
+            return 1;
+        }
 
-      value;
+        value;
     });
     UNNAMED = stf::scope_exit([&device, &command_pool] { device.destroyCommandPool(command_pool); });
 
     const auto command_buffer_allocate_info = vk::CommandBufferAllocateInfo(command_pool, vk::CommandBufferLevel::ePrimary, 1);
     const auto command_buffers = ({
-      auto&& [result, value] = device.allocateCommandBuffers(command_buffer_allocate_info);
+        auto&& [result, value] = device.allocateCommandBuffers(command_buffer_allocate_info);
 
-      if (result != vk::Result::eSuccess) {
-          spdlog::error("could not create a vector of vk::CommandBuffer, error code: {}", vk::to_string(result));
-          return 1;
-      }
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a vector of vk::CommandBuffer, error code: {}", vk::to_string(result));
+            return 1;
+        }
 
-      value;
+        value;
     });
     UNNAMED = stf::scope_exit([&device, &command_pool, &command_buffers] { device.freeCommandBuffers(command_pool, command_buffers); });
 
@@ -312,6 +318,7 @@ auto main() -> int {
     auto vk_surface = ({
         auto* surface_tmp = VkSurfaceKHR{};
         SDL_Vulkan_CreateSurface(window, instance, &surface_tmp);
+
         if (surface_tmp == nullptr) {
             spdlog::error("failed to create a vulkan surface through SDL, error: {}", SDL_GetError());
             return 1;
@@ -321,6 +328,111 @@ auto main() -> int {
         vk_surface_tmp;
     });
     UNNAMED = stf::scope_exit{[&instance, &vk_surface] { instance.destroy(vk_surface); }};
+
+    const auto surface_capabilities = ({
+        auto&& [result, value] = physical_device.getSurfaceCapabilitiesKHR(vk_surface);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not fetch surface capabilities from the physical device, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+
+    const auto surface_formats = ({
+        auto&& [result, value] = physical_device.getSurfaceFormatsKHR(vk_surface);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not fetch surface formats from the physical device, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+
+    for (auto const& [no, format] : surface_formats | std::views::enumerate) {
+        spdlog::debug("Surface #{}:", no);
+        spdlog::debug("\tColor space: {}", vk::to_string(format.colorSpace));
+        spdlog::debug("\tFormat     : {}", vk::to_string(format.format));
+    }
+
+    const auto surface_format = surface_formats[0].format == vk::Format::eUndefined ? vk::Format::eR8G8B8A8Unorm : surface_formats[0].format;
+
+    const auto swapchain_present_mode = vk::PresentModeKHR::eFifo;
+    const auto pre_transform = (surface_capabilities.supportedTransforms & vk::SurfaceTransformFlagBitsKHR::eIdentity) != vk::SurfaceTransformFlagBitsKHR{}
+                               ? vk::SurfaceTransformFlagBitsKHR::eIdentity
+                               : surface_capabilities.currentTransform;
+
+    const auto composite_alpha = (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePreMultiplied) != vk::CompositeAlphaFlagBitsKHR{}
+                                 ? vk::CompositeAlphaFlagBitsKHR::ePreMultiplied
+                               : (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::ePostMultiplied) != vk::CompositeAlphaFlagBitsKHR{}
+                                 ? vk::CompositeAlphaFlagBitsKHR::ePostMultiplied
+                               : (surface_capabilities.supportedCompositeAlpha & vk::CompositeAlphaFlagBitsKHR::eInherit) != vk::CompositeAlphaFlagBitsKHR{}
+                                 ? vk::CompositeAlphaFlagBitsKHR::eInherit
+                                 : vk::CompositeAlphaFlagBitsKHR::eOpaque;
+
+    const auto swapchain_create_info = vk::SwapchainCreateInfoKHR(
+      vk::SwapchainCreateFlagsKHR(),                                                                                              //
+      vk_surface,                                                                                                                 //
+      std::clamp(3u, surface_capabilities.minImageCount, surface_capabilities.maxImageCount ?: std::numeric_limits<u32>::max()),  //
+      surface_format,                                                                                                             //
+      vk::ColorSpaceKHR::eSrgbNonlinear,                                                                                          //
+      extent,                                                                                                                     //
+      1,                                                                                                                          //
+      vk::ImageUsageFlagBits::eColorAttachment,                                                                                   //
+      vk::SharingMode::eExclusive,                                                                                                //
+      {},                                                                                                                         //
+      pre_transform,                                                                                                              //
+      composite_alpha,                                                                                                            //
+      swapchain_present_mode,                                                                                                     //
+      VK_TRUE,                                                                                                                    //
+      nullptr
+    );
+
+    const auto swapchain = ({
+        auto&& [result, value] = device.createSwapchainKHR(swapchain_create_info);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not create a swapchain, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+    UNNAMED = stf::scope_exit{[&device, &swapchain] { device.destroy(swapchain); }};
+
+    const auto swapchain_images = ({
+        auto&& [result, value] = device.getSwapchainImagesKHR(swapchain);
+
+        if (result != vk::Result::eSuccess) {
+            spdlog::error("could not get swapchain images, error code: {}", vk::to_string(result));
+            return 1;
+        }
+
+        value;
+    });
+
+    auto image_views = std::vector<vk::ImageView>{swapchain_images.size()};
+    UNNAMED = stf::scope_exit{[&device, &image_views] { std::ranges::for_each(image_views, [&device](auto const& view) { device.destroy(view); }); }};
+
+    vk::ImageViewCreateInfo imageViewCreateInfo({}, {}, vk::ImageViewType::e2D, surface_format, {}, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+    for (auto const& [no, image] : swapchain_images | std::views::enumerate) {
+        imageViewCreateInfo.image = image;
+        auto&& image_view = ({
+            auto&& [result, value] = device.createImageView(imageViewCreateInfo);
+
+            if (result != vk::Result::eSuccess) {
+                spdlog::error("could not create a swapchain image view, index {}, error code: {}", no, vk::to_string(result));
+                return 1;
+            }
+
+            value;
+        });
+
+        UNNAMED = stf::scope_fail{[&device, &image_view] { device.destroy(image_view); }};
+        image_views.emplace_back(std::move(image_view));
+    }
 
     auto frame_number = 0u;
     for (auto running = true; running;) {
