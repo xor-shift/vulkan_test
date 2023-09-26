@@ -10,14 +10,25 @@
 #include <expected>
 #include <string_view>
 
-struct vk_dynamic_loader {
-    static auto make() -> std::expected<vk_dynamic_loader, std::string_view>;
+struct dynamic_loader {
+    static auto make(std::span<const char* const> names) -> std::expected<dynamic_loader, std::string_view>;
 
-    ~vk_dynamic_loader() {
-        close_dl(m_dl);
+    dynamic_loader() = default;
+    dynamic_loader(dynamic_loader const&) = delete;
+    auto operator=(dynamic_loader const&) -> dynamic_loader& = delete;
+
+    dynamic_loader(dynamic_loader&& other) noexcept
+        : m_dl(other.m_dl) {
+        other.m_dl = nullptr;
     }
 
-    PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = nullptr;
+    auto operator=(dynamic_loader&& other) noexcept -> dynamic_loader& {
+        m_dl = other.m_dl;
+        other.m_dl = nullptr;
+        return *this;
+    }
+
+    ~dynamic_loader() { close_dl(m_dl); }
 
     template<typename Fn>
     auto getProcAddress(const char* name) const -> Fn {
@@ -30,6 +41,15 @@ struct vk_dynamic_loader {
         return res;
     }
 
+    template<typename Sym>
+    auto get_dl_symbol(const char* symbol_name) const -> Sym {
+        return reinterpret_cast<Sym>(get_dl_symbol(symbol_name));
+    }
+
+    auto get_dl_symbol(const char* symbol_name) const -> void*;
+
+    constexpr operator bool() const { return m_dl != dl_type{}; }
+
 private:
 #if defined(__linux__) || defined(__APPLE__)
     using dl_type = void*;
@@ -37,36 +57,9 @@ private:
     using dl_type = HMODULE;
 #endif
 
-    dl_type m_dl;
-
-    static constexpr auto get_candidate_library_names() -> std::span<const char* const> {
-#ifdef __linux__
-        return (const char* const[]){
-          "libvulkan.so.1",  //
-          "libvulkan.so"     //
-        };
-#elifdef __APPLE__
-        return (const char* const[]){
-          "libvulkan.1.dylib",
-          "libvulkan.dylib",
-        };
-#elifdef _WIN32
-        return (const char* const[]){
-          "vulkan-1.dll",
-        };
-#else
-        return {};
-#endif
-    }
+    dl_type m_dl = dl_type{};
 
     static auto open_dl(const char* lib_name) -> std::optional<dl_type>;
 
     static void close_dl(dl_type library);
-
-    template<typename Sym>
-    auto get_dl_symbol(const char* symbol_name) const -> Sym {
-        return reinterpret_cast<Sym>(get_dl_symbol_impl(symbol_name));
-    }
-
-    auto get_dl_symbol_impl(const char* symbol_name) const -> void*;
 };

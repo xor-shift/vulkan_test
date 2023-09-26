@@ -30,7 +30,7 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC
-        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+        #VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
         VULKAN_HPP_NO_EXCEPTIONS)
 
 target_compile_options(${PROJECT_NAME} PUBLIC -Wall -Wextra)

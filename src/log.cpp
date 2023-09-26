@@ -100,7 +100,7 @@ auto vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkD
 }
 
 void log(vk::LayerProperties const& layer, usize tabulation, spdlog::level::level_enum severity) {
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}\", layer.layerName"), "", tabulation, std::string_view(layer.layerName.data()));
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}"), "", tabulation, std::string_view(layer.layerName.data()));
     spdlog::log(
       severity, fmt::runtime("{:\t>{}}Spec version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(layer.specVersion), VK_VERSION_MINOR(layer.specVersion),
       VK_VERSION_PATCH(layer.specVersion)
