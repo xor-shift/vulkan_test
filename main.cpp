@@ -24,26 +24,67 @@
 struct error {
     std::string m_description;
     std::source_location m_location;
-};
+    vk::Result m_vk_result = vk::Result::eSuccess;
 
-template<typename T>
-constexpr auto vk_res_to_expected(vk::ResultValue<T>&& val) -> std::expected<T, vk::Result> {
-    auto&& [result, value] = std::move(val);
-
-    if (result == vk::Result::eSuccess) {
-        return std::move(value);
+    static auto make(std::string_view description, std::source_location location = std::source_location::current()) {
+        return error{
+          .m_description{description.begin(), description.end()},
+          .m_location = location,
+        };
     }
 
-    return std::unexpected<vk::Result>(result);
-}
+    static auto make_vk(vk::Result result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current()) {
+        return error{
+          .m_description = fmt::format("vulkan call returned {}, additional information: {}", vk::to_string(result), additional),
+          .m_location = location,
+          .m_vk_result = result,
+        };
+    }
 
-#define TRYX_VK(_expr) TRYX(vk_res_to_expected(std::move((_expr))))
+    template<typename T>
+        requires(!std::is_void_v<T>)
+    static auto from_vk(vk::ResultValue<T>&& vk_result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
+      -> std::expected<T, error> {
+        auto&& [result, value] = std::move(vk_result);
+
+        if (result != vk::Result::eSuccess) {
+            return std::unexpected{error::make_vk(result, additional, location)};
+        }
+
+        return value;
+    }
+
+    static auto from_vk(vk::Result&& result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
+      -> std::expected<void, error> {
+        if (result != vk::Result::eSuccess) {
+            return std::unexpected{error::make_vk(result, additional, location)};
+        }
+
+        return {};
+    }
+};
+
+template<>
+struct fmt::formatter<std::source_location> {
+    constexpr auto parse(auto& ctx) { return ctx.begin(); }
+
+    auto format(std::source_location const& loc, auto& ctx) {
+        return fmt::format_to(ctx.out(), "function \"{}\" at {}:{}:{}", loc.function_name(), loc.file_name(), loc.line(), loc.column());
+    }
+};
+
+template<>
+struct fmt::formatter<error> {
+    constexpr auto parse(auto& ctx) { return ctx.begin(); }
+
+    auto format(error const& err, auto& ctx) { return fmt::format_to(ctx.out(), "error at {}, description: {}", err.m_location, err.m_description); }
+};
 
 struct vulkan_stuff {
-    static auto make() -> std::expected<vulkan_stuff, std::string_view> {
+    static auto make() -> std::expected<vulkan_stuff, error> {
         auto&& ret = vulkan_stuff{};
 
-        ret.m_dyna_loader = TRYX(dynamic_loader::make(get_vulkan_library_names()));
+        ret.m_dyna_loader = TRYX(dynamic_loader::make(get_vulkan_library_names()).transform_error([](auto err) { return error::make(err); }));
         ret.m_vk_dispatch.init(ret.m_dyna_loader.get_dl_symbol<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
 
         TRYX(ret.fill_in_vk_layers_and_extensions());
@@ -70,6 +111,7 @@ struct vulkan_stuff {
         TRYX(ret.init_vk_devices_and_queues());
         TRYX(ret.init_vk_command_pool());
         TRYX(ret.init_vk_command_buffer());
+        TRYX(ret.init_vk_pass_info());
         TRYX(ret.reinit_vk_swapchain(ret.m_window_size));
 
         // return std::unexpected{"WIP"};
@@ -82,24 +124,34 @@ struct vulkan_stuff {
         : m_app_info(other.m_app_info)
         , m_vk_instance_layers(std::move(other.m_vk_instance_layers))
         , m_vk_instance_extensions(std::move(other.m_vk_instance_extensions))
+
         , m_dyna_loader(std::move(other.m_dyna_loader))
         , m_vk_dispatch(other.m_vk_dispatch)
+
         , m_vk_instance(other.m_vk_instance)
         , m_vk_debug_messenger(other.m_vk_debug_messenger)
+
         , m_window_size(other.m_window_size)
         , m_sdl_window(other.m_sdl_window)
         , m_vk_surface(other.m_vk_surface)
+
         , m_vk_physical_device(other.m_vk_physical_device)
+
         , m_vk_queue_family_index(other.m_vk_queue_family_index)
         , m_vk_queue_family(other.m_vk_queue_family)
         , m_vk_queue(other.m_vk_queue)
+
         , m_vk_device(other.m_vk_device)
         , m_vk_command_pool(other.m_vk_command_pool)
         , m_vk_command_buffer(other.m_vk_command_buffer)
+
+        , m_vk_render_pass(other.m_vk_render_pass)
+
         , m_vk_swapchain(other.m_vk_swapchain)
         , m_vk_swapchain_format(other.m_vk_swapchain_format)
         , m_vk_swapchain_images(std::move(other.m_vk_swapchain_images))
-        , m_vk_swapchain_image_views(std::move(other.m_vk_swapchain_image_views)) {
+        , m_vk_swapchain_image_views(std::move(other.m_vk_swapchain_image_views))
+        , m_vk_framebuffers(std::move(other.m_vk_framebuffers)) {
         other.m_vk_instance = nullptr;
         other.m_vk_debug_messenger = nullptr;
 
@@ -112,6 +164,8 @@ struct vulkan_stuff {
         other.m_vk_queue_family = vk::QueueFamilyProperties{};
         other.m_vk_queue = nullptr;
 
+        other.m_vk_render_pass = nullptr;
+
         other.m_vk_device = nullptr;
         other.m_vk_command_pool = nullptr;
         other.m_vk_command_buffer = nullptr;
@@ -120,11 +174,7 @@ struct vulkan_stuff {
     }
 
     ~vulkan_stuff() {
-        if ((bool)m_vk_swapchain) {
-            std::ranges::for_each(m_vk_swapchain_image_views, [this](auto const& view) { m_vk_device.destroy(view); });
-
-            m_vk_device.destroy(m_vk_swapchain, nullptr, m_vk_dispatch);
-        }
+        std::ignore = destroy_vk_swapchain();
 
         if ((bool)m_vk_command_buffer) {
             m_vk_device.freeCommandBuffers(m_vk_command_pool, 1, &m_vk_command_buffer, m_vk_dispatch);
@@ -155,181 +205,121 @@ struct vulkan_stuff {
         }
     }
 
-    void run() {
-        auto color_attachment = vk::AttachmentDescription(
-          {},                                //
-          m_vk_swapchain_format,             //
-          vk::SampleCountFlagBits::e1,       //
-          vk::AttachmentLoadOp::eClear,      //
-          vk::AttachmentStoreOp::eStore,     //
-          vk::AttachmentLoadOp::eDontCare,   //
-          vk::AttachmentStoreOp::eDontCare,  //
-          vk::ImageLayout::eUndefined,       //
-          vk::ImageLayout::ePresentSrcKHR    //
-        );
-
-        auto color_attachment_ref = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
-
-        auto subpass = vk::SubpassDescription(
-          {},                                //
-          vk::PipelineBindPoint::eGraphics,  //
-          0, nullptr,                        //
-          1, &color_attachment_ref           //
-        );
-
-        auto render_pass_create_info = vk::RenderPassCreateInfo(
-          {},                    //
-          1, &color_attachment,  //
-          1, &subpass            //
-        );
-
-        auto render_pass = ({
-            auto&& [result, value] = m_vk_device.createRenderPass(render_pass_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a render pass, error code: {}", vk::to_string(result));
-                return;
-            }
-
-            value;
-        });
-        UNNAMED = stf::scope_exit{[this, &render_pass] { m_vk_device.destroy(render_pass, nullptr, m_vk_dispatch); }};
-
-        auto framebuffers = std::vector<vk::Framebuffer>{m_vk_swapchain_image_views.size()};
-        UNNAMED = stf::scope_exit{[this, &framebuffers] {
-            for (auto const& framebuffer : framebuffers) {
-                if (!framebuffer) {
-                    continue;
-                }
-
-                m_vk_device.destroy(framebuffer, nullptr, m_vk_dispatch);
-            }
-        }};
-
-        for (auto const& [no, view] : m_vk_swapchain_image_views | std::views::enumerate) {
-            auto framebuffer_create_info = vk::FramebufferCreateInfo(
-              {},                                         //
-              render_pass,                                //
-              1, &view,                                   //
-              m_window_size.width, m_window_size.height,  //
-              1                                           //
-            );
-
-            framebuffers[no] = ({
-                auto&& [result, value] = m_vk_device.createFramebuffer(framebuffer_create_info, nullptr, m_vk_dispatch);
-
-                if (result != vk::Result::eSuccess) {
-                    spdlog::error("could not create a framebuffer (index {}), error code: {}", no, vk::to_string(result));
-                    return;
-                }
-
-                value;
-            });
-        }
-
-        auto fence_create_info = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
-        auto render_fence = ({
-            auto&& [result, value] = m_vk_device.createFence(fence_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a fence (for renders), error code: {}", vk::to_string(result));
-                return;
-            }
-
-            value;
-        });
-        UNNAMED = stf::scope_exit{[this, &render_fence] { m_vk_device.destroy(render_fence, nullptr, m_vk_dispatch); }};
-
-        auto present_semaphore = ({
-            auto&& [result, value] = m_vk_device.createSemaphore(vk::SemaphoreCreateInfo{}, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a semaphore (for present), error code: {}", vk::to_string(result));
-                return;
-            }
-
-            value;
-        });
-        UNNAMED = stf::scope_exit{[this, &present_semaphore] { m_vk_device.destroy(present_semaphore, nullptr, m_vk_dispatch); }};
-
-        auto render_semaphore = ({
-            auto&& [result, value] = m_vk_device.createSemaphore(vk::SemaphoreCreateInfo{}, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a semaphore (for render), error code: {}", vk::to_string(result));
-                return;
-            }
-
-            value;
-        });
-        UNNAMED = stf::scope_exit{[this, &render_semaphore] { m_vk_device.destroy(render_semaphore, nullptr, m_vk_dispatch); }};
-
+    auto frame(vk::Fence& render_fence, vk::Semaphore& present_semaphore, vk::Semaphore& render_semaphore, usize frame_number) -> std::expected<bool, error> {
         static constexpr auto a_second = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
+
+        bool running = true;
         static constexpr auto color_period = 120.f;
 
-        auto frame_number = 0u;
-        for (auto running = true; running;) {
-            for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
-                if (event.type == SDL_EVENT_QUIT) {
-                    running = false;
-                }
+        for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
+            switch (event.type) {
+                case SDL_EVENT_QUIT: running = false; break;
+                case SDL_EVENT_WINDOW_RESIZED:
+                    TRYX(error::from_vk(m_vk_device.waitIdle(m_vk_dispatch), "while waiting for device idle"));
+
+                    // TRYX(destroy_vk_swapchain());
+                    m_window_size.width = static_cast<u32>(event.window.data1);
+                    m_window_size.height = static_cast<u32>(event.window.data2);
+                    TRYX(reinit_vk_swapchain(m_window_size));
+                    break;
+                default: break;
             }
+        }
+
+        auto swapchain_image_index = 0u;
+        switch (auto&& res = m_vk_device.acquireNextImageKHR(m_vk_swapchain, a_second, present_semaphore, nullptr, m_vk_dispatch); res.result) {
+            case vk::Result::eSuccess: [[fallthrough]];
+            case vk::Result::eSuboptimalKHR: swapchain_image_index = res.value; break;
+            default: return std::unexpected{error::make_vk(res.result, "could not acquire the next image in the swapchain")};
+        }
+
+        m_vk_command_buffer.reset({}, m_vk_dispatch);
+
+        const auto command_begin_info = vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+        std::ignore = m_vk_command_buffer.begin(command_begin_info);
+
+        const auto clear_color = std::abs(std::sin(static_cast<float>(frame_number) / color_period));
+        const auto clear_value = vk::ClearValue((std::array<float, 4>){0.f, 0.f, clear_color, 1.f});
+
+        const auto render_pass_info = vk::RenderPassBeginInfo(
+          m_vk_render_pass,                                                                     //
+          m_vk_framebuffers[swapchain_image_index],                                             //
+          vk::Rect2D(vk::Offset2D(), vk::Extent2D(m_window_size.width, m_window_size.height)),  //
+          1, &clear_value                                                                       //
+        );
+
+        m_vk_command_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline, m_vk_dispatch);
+        m_vk_command_buffer.endRenderPass(m_vk_dispatch);
+
+        TRYX(error::from_vk(m_vk_command_buffer.end(m_vk_dispatch), "failed to end the command buffer"));
+
+        const auto wait_dst_stage_flags = vk::PipelineStageFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+        const auto submit_info = vk::SubmitInfo(
+          1, &present_semaphore,    //
+          &wait_dst_stage_flags,    //
+          1, &m_vk_command_buffer,  //
+          1, &render_semaphore      //
+        );
+
+        TRYX(error::from_vk(m_vk_queue.submit(1, &submit_info, render_fence, m_vk_dispatch), "failed to submit commands to the queue"));
+
+        const auto present_info = vk::PresentInfoKHR(
+          1, &render_semaphore,                        //
+          1, &m_vk_swapchain, &swapchain_image_index,  //
+          nullptr                                      //
+        );
+
+        switch (auto&& res = m_vk_queue.presentKHR(present_info, m_vk_dispatch); res) {
+            case vk::Result::eSuccess: [[fallthrough]];
+            case vk::Result::eSuboptimalKHR: break;
+            default: return std::unexpected{error::make_vk(std::move(res), "failed to present")};
+        }
+
+        return running;
+    }
+
+    auto run() -> std::expected<void, error> {
+        static constexpr auto a_second = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)).count();
+
+        auto fence_create_info = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
+        auto render_fence = TRYX(error::from_vk(m_vk_device.createFence(fence_create_info, nullptr, m_vk_dispatch), "could not create a fence (for renders)"));
+        UNNAMED = stf::scope_exit{[this, &render_fence] { m_vk_device.destroy(render_fence, nullptr, m_vk_dispatch); }};
+
+        auto present_semaphore = TRYX(error::from_vk(m_vk_device.createSemaphore(vk::SemaphoreCreateInfo{}, nullptr, m_vk_dispatch), "could not create a semaphore (for present)"));
+        UNNAMED = stf::scope_exit{[this, &present_semaphore] { m_vk_device.destroy(present_semaphore, nullptr, m_vk_dispatch); }};
+
+        auto render_semaphore = TRYX(error::from_vk(m_vk_device.createSemaphore(vk::SemaphoreCreateInfo{}, nullptr, m_vk_dispatch), "could not create a semaphore (for render)"));
+        UNNAMED = stf::scope_exit{[this, &render_semaphore] { m_vk_device.destroy(render_semaphore, nullptr, m_vk_dispatch); }};
+
+        for (auto frame_number = 0uz;; frame_number++) {
             std::ignore = m_vk_device.waitForFences(1, &render_fence, VK_TRUE, a_second, m_vk_dispatch);
             std::ignore = m_vk_device.resetFences(1, &render_fence, m_vk_dispatch);
 
-            auto swapchain_image_index = ({
-                auto&& [result, value] = m_vk_device.acquireNextImageKHR(m_vk_swapchain, a_second, present_semaphore, nullptr, m_vk_dispatch);
+            auto res = frame(render_fence, present_semaphore, render_semaphore, frame_number);
 
-                if (result != vk::Result::eSuccess) {
-                    spdlog::error("could not acquire the next image in the swapchain, error code: {}", vk::to_string(result));
-                    return;
+            if (res) {
+                if (*res) {
+                    continue;
                 }
 
-                value;
-            });
+                break;
+            }
 
-            m_vk_command_buffer.reset({}, m_vk_dispatch);
+            auto const& error = res.error();
 
-            const auto command_begin_info = vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
-            std::ignore = m_vk_command_buffer.begin(command_begin_info);
+            spdlog::warn("received an error: {}", error);
 
-            const auto flash = std::abs(std::sin(static_cast<float>(frame_number) / color_period));
-            const auto clear_value = vk::ClearValue((std::array<float, 4>){0.f, 0.f, flash, 1.f});
-
-            const auto render_pass_info = vk::RenderPassBeginInfo(
-              render_pass,                                                                          //
-              framebuffers[swapchain_image_index],                                                  //
-              vk::Rect2D(vk::Offset2D(), vk::Extent2D(m_window_size.width, m_window_size.height)),  //
-              1, &clear_value                                                                       //
-            );
-
-            m_vk_command_buffer.beginRenderPass(render_pass_info, vk::SubpassContents::eInline, m_vk_dispatch);
-            m_vk_command_buffer.endRenderPass(m_vk_dispatch);
-            m_vk_command_buffer.end(m_vk_dispatch);
-
-            const auto wait_dst_stage_flags = vk::PipelineStageFlags(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-            const auto submit_info = vk::SubmitInfo(
-              1, &present_semaphore,    //
-              &wait_dst_stage_flags,    //
-              1, &m_vk_command_buffer,  //
-              1, &render_semaphore      //
-            );
-
-            m_vk_queue.submit(1, &submit_info, render_fence, m_vk_dispatch);
-
-            const auto present_info = vk::PresentInfoKHR(
-              1, &render_semaphore,                        //
-              1, &m_vk_swapchain, &swapchain_image_index,  //
-              nullptr                                      //
-            );
-
-            m_vk_queue.presentKHR(present_info, m_vk_dispatch);
-
-            frame_number++;
+            switch (error.m_vk_result) {
+                case vk::Result::eSuboptimalKHR: [[fallthrough]];
+                case vk::Result::eErrorOutOfDateKHR: spdlog::warn("asd"); break;
+                default: spdlog::error("the error was not a soft error, propagating"); return std::unexpected{error};
+            }
         }
 
         std::ignore = m_vk_device.waitForFences(1, &render_fence, VK_TRUE, a_second, m_vk_dispatch);
         std::ignore = m_vk_device.resetFences(1, &render_fence, m_vk_dispatch);
+
+        return {};
     }
 
 private:
@@ -364,10 +354,13 @@ private:
     vk::CommandPool m_vk_command_pool;
     vk::CommandBuffer m_vk_command_buffer;
 
+    vk::RenderPass m_vk_render_pass;
+
     vk::SwapchainKHR m_vk_swapchain;
     vk::Format m_vk_swapchain_format;
     std::vector<vk::Image> m_vk_swapchain_images;
     std::vector<vk::ImageView> m_vk_swapchain_image_views;
+    std::vector<vk::Framebuffer> m_vk_framebuffers;
 
     static auto get_desired_instance_layers() -> std::span<const std::pair<const char*, usize>> {
         return (const std::pair<const char*, usize>[]){
@@ -417,7 +410,7 @@ private:
 #endif
     }
 
-    static constexpr auto pick_stuff(auto&& desired, auto&& available, std::string_view name) -> std::expected<std::vector<const char*>, std::string_view> {
+    static constexpr auto pick_stuff(auto&& desired, auto&& available, std::string_view name) -> std::expected<std::vector<const char*>, error> {
         static constexpr auto grouper = std::views::chunk_by([](auto const& lhs, auto const& rhs) { return lhs.second == rhs.second; });
 
         auto desired_groups = desired | grouper;
@@ -445,7 +438,7 @@ private:
                 }
             }
 
-            return std::unexpected{"THIS ERROR MUST HAVE BEEN REPLACED"};
+            return std::unexpected{error{}};
         }
 
         auto extension_names_range = available_groups | std::views::transform([](auto group) { return group | std::views::take(1); }) | std::views::join | std::views::keys;
@@ -460,47 +453,20 @@ private:
         return ret;
     }
 
-    auto fill_in_vk_layers_and_extensions() -> std::expected<void, std::string_view> {
-        auto layers = ({
-            auto&& [result, value] = vk::enumerateInstanceLayerProperties(m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not enumerate instance layer properties, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not enumerate instance layer properties"};
-            }
-
-            value;
-        });
+    auto fill_in_vk_layers_and_extensions() -> std::expected<void, error> {
+        auto layers = TRYX(error::from_vk(vk::enumerateInstanceLayerProperties(m_vk_dispatch), "failed to enumerate instance layers"));
 
         m_vk_instance_layers.reserve(layers.size());
         for (auto const& layer_props : layers) {
-            auto layer_extensions = ({
-                // this is such a bad use of std::string
-                auto&& [result, value] = vk::enumerateInstanceExtensionProperties(std::string(layer_props.layerName.data()), m_vk_dispatch);
-
-                if (result != vk::Result::eSuccess) {
-                    spdlog::error(
-                      "could not enumerate instance extensions for layer \"{}\", error code: {}", std::string_view(layer_props.layerName.data()), vk::to_string(result)
-                    );
-                    return std::unexpected{"could not enumerate instance extensions for a layer"};
-                }
-
-                value;
-            });
+            // this is such a bad use of std::string
+            auto layer_extensions = TRYX(
+              error::from_vk(vk::enumerateInstanceExtensionProperties(std::string(layer_props.layerName.data()), m_vk_dispatch), "failed to enumerate instance layer properties")
+            );
 
             m_vk_instance_layers.emplace_back(layer_props, layer_extensions);
         }
 
-        m_vk_instance_extensions = ({
-            auto&& [result, value] = vk::enumerateInstanceExtensionProperties(nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not enumerate instance layer properties, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not enumerate instance layer properties"};
-            }
-
-            value;
-        });
+        m_vk_instance_extensions = TRYX(error::from_vk(vk::enumerateInstanceExtensionProperties(nullptr, m_vk_dispatch), "could not enumerate instance layer properties"));
 
         return {};
     }
@@ -551,33 +517,26 @@ private:
         //.value_or([] { return std::ranges::empty_view<VkExtensionProperties>{}; });
     }
 
-    auto init_vk_instance() -> std::expected<void, std::string_view> {
+    auto init_vk_instance() -> std::expected<void, error> {
         auto desired_layers = get_desired_instance_layers();
         auto available_layers = desired_layers | std::views::filter([this](auto const& ext) { return (bool)layer(ext.first); });
-        auto layers_to_enable = TRYX(pick_stuff(desired_layers, available_layers, "layer").transform_error([](auto) { return "could not enable all required instance layers"; }));
+        auto layers_to_enable =
+          TRYX(pick_stuff(desired_layers, available_layers, "layer").transform_error([](auto) { return error::make("could not enable all required instance layers"); }));
 
         auto desired_exts = get_desired_instance_extensions();
         auto available_exts = desired_exts | std::views::filter([this](auto const& ext) { return (bool)extension(ext.first); });
-        auto exts_to_enable = TRYX(pick_stuff(desired_exts, available_exts, "extension").transform_error([](auto) { return "could not enable all required instance extensions"; }));
+        auto exts_to_enable =
+          TRYX(pick_stuff(desired_exts, available_exts, "extension").transform_error([](auto) { return error::make("could not enable all required instance extensions"); }));
 
         const auto instance_create_info = vk::InstanceCreateInfo({}, &m_app_info, layers_to_enable, exts_to_enable, nullptr);
-        m_vk_instance = ({
-            auto&& [result, value] = vk::createInstance(instance_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a vk::Instance, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a vk::Instance"};
-            }
-
-            value;
-        });
+        m_vk_instance = TRYX(error::from_vk(vk::createInstance(instance_create_info, nullptr, m_vk_dispatch), "could not create a vk::Instance"));
 
         m_vk_dispatch.init(m_vk_instance);
 
         return {};
     }
 
-    auto init_vk_debug_messenger() -> std::expected<void, std::string_view> {
+    auto init_vk_debug_messenger() -> std::expected<void, error> {
         const auto debug_utils_messenger_create_info = vk::DebugUtilsMessengerCreateInfoEXT(
           {},                                                                                                                                                       //
           vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,  //
@@ -585,43 +544,36 @@ private:
           vxl::vulkan_debug_messenger                                                                                                                               //
         );
 
-        m_vk_debug_messenger = ({
-            auto&& [result, value] = m_vk_instance.createDebugUtilsMessengerEXT(debug_utils_messenger_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a vk::DebugUtilsMessengerEXT, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a vk::DebugUtilsMessengerEXT"};
-            }
-
-            value;
-        });
+        m_vk_debug_messenger = TRYX(
+          error::from_vk(m_vk_instance.createDebugUtilsMessengerEXT(debug_utils_messenger_create_info, nullptr, m_vk_dispatch), "could not create a vk::DebugUtilsMessengerEXT")
+        );
 
         return {};
     }
 
-    auto init_sdl_window() -> std::expected<void, std::string_view> {
+    auto init_sdl_window() -> std::expected<void, error> {
         m_sdl_window = SDL_CreateWindow(
           "vulkan test",                                                                  //
           static_cast<int>(m_window_size.width), static_cast<int>(m_window_size.height),  //
-          static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN)
+          static_cast<SDL_WindowFlags>(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE)
         );
 
         if (m_sdl_window == nullptr) {
             spdlog::error("failed to create an SDL window, error: {}", SDL_GetError());
-            return std::unexpected{"failed to create an SDL window"};
+            return std::unexpected{error::make("failed to create an SDL window")};
         }
 
         return {};
     }
 
-    auto init_vk_surface() -> std::expected<void, std::string_view> {
+    auto init_vk_surface() -> std::expected<void, error> {
         m_vk_surface = ({
             auto* surface_tmp = VkSurfaceKHR{};
             SDL_Vulkan_CreateSurface(m_sdl_window, m_vk_instance, &surface_tmp);
 
             if (surface_tmp == nullptr) {
                 spdlog::error("failed to create a vulkan surface through SDL, error: {}", SDL_GetError());
-                return std::unexpected{"failed to create a vulkan surface through SDL"};
+                return std::unexpected{error::make("failed to create a vulkan surface through SDL")};
             }
 
             auto&& vk_surface_tmp = vk::SurfaceKHR(surface_tmp);
@@ -631,28 +583,10 @@ private:
         return {};
     }
 
-    auto try_init_device(vk::PhysicalDevice const& physical_device, usize queue_family_index) const -> std::expected<vk::Device, std::string_view> {
-        auto device_layers = ({
-            auto&& [result, value] = physical_device.enumerateDeviceLayerProperties(m_vk_dispatch);
+    auto try_init_device(vk::PhysicalDevice const& physical_device, usize queue_family_index) const -> std::expected<vk::Device, error> {
+        auto device_layers = TRYX(error::from_vk(physical_device.enumerateDeviceLayerProperties(m_vk_dispatch), "could not enumerate physical device layers"));
 
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not enumerate physical device layers, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not enumerate physical device layers"};
-            }
-
-            value;
-        });
-
-        auto device_extensions = ({
-            auto&& [result, value] = physical_device.enumerateDeviceExtensionProperties(nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not enumerate physical device extensions, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not enumerate physical device extensions"};
-            }
-
-            value;
-        });
+        auto device_extensions = TRYX(error::from_vk(physical_device.enumerateDeviceExtensionProperties(nullptr, m_vk_dispatch), "could not enumerate physical device extensions"));
 
         auto filterer = [](auto& range_to_check, auto member) {
             return std::views::filter([&range_to_check, member](auto const& to_check) {
@@ -665,41 +599,24 @@ private:
         auto desired_layers = get_desired_device_layers();
         auto available_layers = desired_layers | filterer(device_layers, &vk::LayerProperties::layerName);
         auto layers_to_enable =
-          TRYX(pick_stuff(desired_layers, available_layers, "device layer").transform_error([](auto) { return "could not enable all required device layers"; }));
+          TRYX(pick_stuff(desired_layers, available_layers, "device layer").transform_error([](auto) { return error::make("could not enable all required device layers"); }));
 
         auto desired_extensions = get_desired_device_extensions();
         auto available_extensions = desired_extensions | filterer(device_extensions, &vk::ExtensionProperties::extensionName);
-        auto extensions_to_enable =
-          TRYX(pick_stuff(desired_extensions, available_extensions, "device extension").transform_error([](auto) { return "could not enable all required device extensions"; }));
+        auto extensions_to_enable = TRYX(pick_stuff(desired_extensions, available_extensions, "device extension").transform_error([](auto) {
+            return error::make("could not enable all required device extensions");
+        }));
 
         const float queue_priorities[] = {0.f};
         const auto queue_create_info = vk::DeviceQueueCreateInfo({}, static_cast<u32>(queue_family_index), queue_priorities);
         const auto device_create_info = vk::DeviceCreateInfo({}, queue_create_info, layers_to_enable, extensions_to_enable);
-        auto&& device = ({
-            auto&& [result, value] = physical_device.createDevice(device_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a vk::Device, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a vk::Device"};
-            }
-
-            value;
-        });
+        auto&& device = TRYX(error::from_vk(physical_device.createDevice(device_create_info, nullptr, m_vk_dispatch), "could not create a vk::Device"));
 
         return device;
     }
 
-    auto init_vk_devices_and_queues() -> std::expected<void, std::string_view> {
-        const auto physical_devices = ({
-            auto&& [result, value] = m_vk_instance.enumeratePhysicalDevices(m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not enumerate physical devices, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not enumerate physical devices"};
-            }
-
-            value;
-        });
+    auto init_vk_devices_and_queues() -> std::expected<void, error> {
+        const auto physical_devices = TRYX(error::from_vk(m_vk_instance.enumeratePhysicalDevices(m_vk_dispatch), "could not enumerate physical devices"));
 
         for (auto const& [device_no, device] : physical_devices | std::views::enumerate) {
             const auto properties = device.getProperties(m_vk_dispatch);
@@ -729,38 +646,20 @@ private:
         return {};
     }
 
-    auto init_vk_command_pool() -> std::expected<void, std::string_view> {
+    auto init_vk_command_pool() -> std::expected<void, error> {
         const auto command_pool_create_info = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_vk_queue_family_index);
-        m_vk_command_pool = ({
-            auto&& [result, value] = m_vk_device.createCommandPool(command_pool_create_info, nullptr, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a vk::CommandPool, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a vk::CommandPool"};
-            }
-
-            value;
-        });
+        m_vk_command_pool = TRYX(error::from_vk(m_vk_device.createCommandPool(command_pool_create_info, nullptr, m_vk_dispatch), "could not create a vk::CommandPool"));
 
         return {};
     }
 
-    auto init_vk_command_buffer() -> std::expected<void, std::string_view> {
+    auto init_vk_command_buffer() -> std::expected<void, error> {
         const auto command_buffer_allocate_info = vk::CommandBufferAllocateInfo(m_vk_command_pool, vk::CommandBufferLevel::ePrimary, 1);
-        const auto command_buffers = ({
-            auto&& [result, value] = m_vk_device.allocateCommandBuffers(command_buffer_allocate_info, m_vk_dispatch);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a vector of vk::CommandBuffer, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a vector of vk::CommandBuffer"};
-            }
-
-            value;
-        });
+        const auto command_buffers =
+          TRYX(error::from_vk(m_vk_device.allocateCommandBuffers(command_buffer_allocate_info, m_vk_dispatch), "could not create a vector of vk::CommandBuffer"));
 
         if (command_buffers.empty()) {
-            spdlog::error("zero command buffers were created despite success?");
-            return std::unexpected{"zero command buffers were created despite success"};
+            return std::unexpected{error::make("zero command buffers were created despite success")};
         }
 
         m_vk_command_buffer = command_buffers[0];
@@ -768,28 +667,33 @@ private:
         return {};
     }
 
-    auto reinit_vk_swapchain(vk::Extent2D extent) -> std::expected<void, std::string_view> {
-        const auto surface_capabilities = ({
-            auto&& [result, value] = m_vk_physical_device.getSurfaceCapabilitiesKHR(m_vk_surface);
+    auto destroy_vk_swapchain() -> std::expected<void, error> {
+        if (!(bool)m_vk_swapchain) {
+            return {};
+        }
 
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not fetch surface capabilities from the physical device, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not fetch surface capabilities from the physical device"};
+        for (auto const& framebuffer : m_vk_framebuffers) {
+            if (!framebuffer) {
+                continue;
             }
 
-            value;
-        });
+            m_vk_device.destroy(framebuffer, nullptr, m_vk_dispatch);
+        }
 
-        const auto surface_formats = ({
-            auto&& [result, value] = m_vk_physical_device.getSurfaceFormatsKHR(m_vk_surface);
+        m_vk_device.destroy(m_vk_render_pass, nullptr, m_vk_dispatch);
 
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not fetch surface formats from the physical device, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not fetch surface formats from the physical device"};
-            }
+        std::ranges::for_each(m_vk_swapchain_image_views, [this](auto const& view) { m_vk_device.destroy(view); });
 
-            value;
-        });
+        m_vk_device.destroy(m_vk_swapchain, nullptr, m_vk_dispatch);
+
+        return {};
+    }
+
+    auto reinit_vk_swapchain(vk::Extent2D extent) -> std::expected<void, error> {
+        const auto surface_capabilities =
+          TRYX(error::from_vk(m_vk_physical_device.getSurfaceCapabilitiesKHR(m_vk_surface), "could not fetch surface capabilities from the physical device"));
+
+        const auto surface_formats = TRYX(error::from_vk(m_vk_physical_device.getSurfaceFormatsKHR(m_vk_surface), "could not fetch surface formats from the physical device"));
 
         for (auto const& [no, format] : surface_formats | std::views::enumerate) {
             spdlog::debug("Surface #{}:", no);
@@ -828,41 +732,17 @@ private:
           composite_alpha,                                                                                                            //
           swapchain_present_mode,                                                                                                     //
           VK_TRUE,                                                                                                                    //
-          nullptr
+          m_vk_swapchain,                                                                                                             //
+          nullptr                                                                                                                     //
         );
 
-        m_vk_swapchain = ({
-            auto&& [result, value] = m_vk_device.createSwapchainKHR(swapchain_create_info);
+        const auto swapchain_temp = TRYX(error::from_vk(m_vk_device.createSwapchainKHR(swapchain_create_info), "could not create a swapchain"));
+        TRYX(destroy_vk_swapchain());
+        m_vk_swapchain = swapchain_temp;
 
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not create a swapchain, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not create a swapchain"};
-            }
+        m_vk_swapchain_images = TRYX(error::from_vk(m_vk_device.getSwapchainImagesKHR(m_vk_swapchain), "could not get swapchain images"));
 
-            value;
-        });
-
-        m_vk_swapchain_images = ({
-            auto&& [result, value] = m_vk_device.getSwapchainImagesKHR(m_vk_swapchain);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not get swapchain images, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not get swapchain images"};
-            }
-
-            value;
-        });
-
-        m_vk_swapchain_images = ({
-            auto&& [result, value] = m_vk_device.getSwapchainImagesKHR(m_vk_swapchain);
-
-            if (result != vk::Result::eSuccess) {
-                spdlog::error("could not get swapchain images, error code: {}", vk::to_string(result));
-                return std::unexpected{"could not get swapchain images"};
-            }
-
-            value;
-        });
+        m_vk_swapchain_images = TRYX(error::from_vk(m_vk_device.getSwapchainImagesKHR(m_vk_swapchain), "could not get swapchain images"));
 
         m_vk_swapchain_image_views = std::vector<vk::ImageView>{};
         m_vk_swapchain_image_views.reserve(m_vk_swapchain_images.size());
@@ -870,26 +750,64 @@ private:
         vk::ImageViewCreateInfo imageViewCreateInfo({}, {}, vk::ImageViewType::e2D, surface_format, {}, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
         for (auto const& [no, image] : m_vk_swapchain_images | std::views::enumerate) {
             imageViewCreateInfo.image = image;
-            auto&& image_view = ({
-                auto&& [result, value] = m_vk_device.createImageView(imageViewCreateInfo);
-
-                if (result != vk::Result::eSuccess) {
-                    spdlog::error("could not create a swapchain image view, index {}, error code: {}", no, vk::to_string(result));
-                    return std::unexpected{"could not create a swapchain image view"};
-                }
-
-                value;
-            });
+            auto&& image_view = TRYX(error::from_vk(m_vk_device.createImageView(imageViewCreateInfo), "could not create a swapchain image view"));
 
             m_vk_swapchain_image_views.emplace_back(std::move(image_view));
         }
 
+        auto color_attachment = vk::AttachmentDescription(
+          {},                                //
+          m_vk_swapchain_format,             //
+          vk::SampleCountFlagBits::e1,       //
+          vk::AttachmentLoadOp::eClear,      //
+          vk::AttachmentStoreOp::eStore,     //
+          vk::AttachmentLoadOp::eDontCare,   //
+          vk::AttachmentStoreOp::eDontCare,  //
+          vk::ImageLayout::eUndefined,       //
+          vk::ImageLayout::ePresentSrcKHR    //
+        );
+
+        auto color_attachment_ref = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+
+        auto subpass = vk::SubpassDescription(
+          {},                                //
+          vk::PipelineBindPoint::eGraphics,  //
+          0, nullptr,                        //
+          1, &color_attachment_ref           //
+        );
+
+        auto render_pass_create_info = vk::RenderPassCreateInfo(
+          {},                    //
+          1, &color_attachment,  //
+          1, &subpass            //
+        );
+
+        m_vk_render_pass = TRYX(error::from_vk(m_vk_device.createRenderPass(render_pass_create_info, nullptr, m_vk_dispatch), "could not create a render pass"));
+
+        m_vk_framebuffers = std::vector<vk::Framebuffer>{m_vk_swapchain_image_views.size()};
+        for (auto const& [no, view] : m_vk_swapchain_image_views | std::views::enumerate) {
+            auto framebuffer_create_info = vk::FramebufferCreateInfo(
+              {},                                         //
+              m_vk_render_pass,                           //
+              1, &view,                                   //
+              m_window_size.width, m_window_size.height,  //
+              1                                           //
+            );
+
+            auto&& res = m_vk_device.createFramebuffer(framebuffer_create_info, nullptr, m_vk_dispatch);
+            m_vk_framebuffers[no] = TRYX(error::from_vk(std::move(res), fmt::format("could not create a framebuffer (index {})", no)));
+        }
+
         return {};
     }
+
+    auto init_vk_pass_info() -> std::expected<void, error> { return {}; }
 };
 
 auto main() -> int {
     spdlog::set_level(spdlog::level::debug);
+
+    spdlog::debug("{}", error::make("this is a test error"));
 
     if (auto init_res = SDL_Init(SDL_INIT_VIDEO); init_res != 0) {
         spdlog::error("SDL initialisation failed, error: {}", SDL_GetError());
@@ -907,5 +825,10 @@ auto main() -> int {
         std::move(*res);
     });
 
-    vulkan_stuff.run();
+    auto&& res = vulkan_stuff.run();
+
+    if (!res) {
+        spdlog::error("program failed with error: {}", res.error());
+        return 1;
+    }
 }
