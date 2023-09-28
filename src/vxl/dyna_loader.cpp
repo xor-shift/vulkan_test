@@ -1,6 +1,8 @@
-#include <vulkan_functions.hpp>
+#include <vxl/dyna_loader.hpp>
 
 #include <dlfcn.h>
+
+namespace vxl {
 
 auto dynamic_loader::make(std::span<const char* const> names) -> std::expected<dynamic_loader, std::string_view> {
     auto ret = dynamic_loader{};
@@ -56,4 +58,6 @@ void dynamic_loader::close_dl(dl_type library) {
 #elifdef _WIN32
     FreeLibrary(library);
 #endif
+}
+
 }

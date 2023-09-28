@@ -1,15 +1,16 @@
-#include <log.hpp>
-#include <vulkan_functions.hpp>
+#include <vxl/dyna_loader.hpp>
+#include <vxl/vk/functions.hpp>
+#include <vxl/vk/loggers.hpp>
+#include <vxl/vk/utils.hpp>
 
 #include <stuff/core.hpp>
 #include <stuff/expected.hpp>
+#include <stuff/intro/introspectors/function.hpp>
 #include <stuff/scope.hpp>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
-#include <VkBootstrap.h>
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_to_string.hpp>
+#include <vulkan/vulkan.h>
 
 #include <chrono>
 #include <cmath>
@@ -17,69 +18,7 @@
 #include <iostream>
 #include <ranges>
 
-#define UNNAMED3(_name) const auto _unnamed_##_name
-#define UNNAMED2(_name) UNNAMED3(_name)
-#define UNNAMED UNNAMED2(__COUNTER__)
-
-struct error {
-    std::string m_description;
-    std::source_location m_location;
-    vk::Result m_vk_result = vk::Result::eSuccess;
-
-    static auto make(std::string_view description, std::source_location location = std::source_location::current()) {
-        return error{
-          .m_description{description.begin(), description.end()},
-          .m_location = location,
-        };
-    }
-
-    static auto make_vk(vk::Result result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current()) {
-        return error{
-          .m_description = fmt::format("vulkan call returned {}, additional information: {}", vk::to_string(result), additional),
-          .m_location = location,
-          .m_vk_result = result,
-        };
-    }
-
-    template<typename T>
-        requires(!std::is_void_v<T>)
-    static auto from_vk(vk::ResultValue<T>&& vk_result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
-      -> std::expected<T, error> {
-        auto&& [result, value] = std::move(vk_result);
-
-        if (result != vk::Result::eSuccess) {
-            return std::unexpected{error::make_vk(result, additional, location)};
-        }
-
-        return value;
-    }
-
-    static auto from_vk(vk::Result&& result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
-      -> std::expected<void, error> {
-        if (result != vk::Result::eSuccess) {
-            return std::unexpected{error::make_vk(result, additional, location)};
-        }
-
-        return {};
-    }
-};
-
-template<>
-struct fmt::formatter<std::source_location> {
-    constexpr auto parse(auto& ctx) { return ctx.begin(); }
-
-    auto format(std::source_location const& loc, auto& ctx) {
-        return fmt::format_to(ctx.out(), "function \"{}\" at {}:{}:{}", loc.function_name(), loc.file_name(), loc.line(), loc.column());
-    }
-};
-
-template<>
-struct fmt::formatter<error> {
-    constexpr auto parse(auto& ctx) { return ctx.begin(); }
-
-    auto format(error const& err, auto& ctx) { return fmt::format_to(ctx.out(), "error at {}, description: {}", err.m_location, err.m_description); }
-};
-
+/*
 struct vulkan_stuff {
     static auto make() -> std::expected<vulkan_stuff, error> {
         auto&& ret = vulkan_stuff{};
@@ -111,7 +50,6 @@ struct vulkan_stuff {
         TRYX(ret.init_vk_devices_and_queues());
         TRYX(ret.init_vk_command_pool());
         TRYX(ret.init_vk_command_buffer());
-        TRYX(ret.init_vk_pass_info());
         TRYX(ret.reinit_vk_swapchain(ret.m_window_size));
 
         // return std::unexpected{"WIP"};
@@ -323,44 +261,51 @@ struct vulkan_stuff {
     }
 
 private:
-    vk::ApplicationInfo m_app_info{"vulkan test", VK_MAKE_VERSION(0, 0, 1), "voxels", VK_MAKE_VERSION(0, 0, 1), VK_API_VERSION_1_1};
+    VkApplicationInfo m_app_info{
+      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+      .pNext = nullptr,
+      .pApplicationName = "vulkan test",
+      .applicationVersion = VK_MAKE_VERSION(0, 0, 1),
+      .pEngineName = "voxels",
+      .engineVersion = VK_MAKE_VERSION(0, 0, 1),
+      .apiVersion = VK_API_VERSION_1_1,
+    };
 
-    using layer_type = std::pair<vk::LayerProperties, std::vector<vk::ExtensionProperties>>;
+    using layer_type = std::pair<VkLayerProperties, std::vector<VkExtensionProperties>>;
     std::vector<layer_type> m_vk_instance_layers{};
-    std::vector<vk::ExtensionProperties> m_vk_instance_extensions{};
+    std::vector<VkExtensionProperties> m_vk_instance_extensions{};
 
     dynamic_loader m_dyna_loader;
-    vk::DispatchLoaderDynamic m_vk_dispatch;
 
-    vk::Instance m_vk_instance;
-    vk::DebugUtilsMessengerEXT m_vk_debug_messenger;
+    VkInstance m_vk_instance;
+    VkDebugUtilsMessengerEXT m_vk_debug_messenger;
 
-    vk::Extent2D m_window_size{640u, 360u};
+    VkExtent2D m_window_size{640u, 360u};
     SDL_Window* m_sdl_window = nullptr;
-    vk::SurfaceKHR m_vk_surface;
+    VkSurfaceKHR m_vk_surface;
 
-    vk::PhysicalDevice m_vk_physical_device;
+    VkPhysicalDevice m_vk_physical_device;
 
     u32 m_vk_queue_family_index;
-    vk::QueueFamilyProperties m_vk_queue_family;
-    vk::Queue m_vk_queue;
+    VkQueueFamilyProperties m_vk_queue_family;
+    VkQueue m_vk_queue;
 
-    // vk::QueueFamilyProperties m_vk_queue_family_graphics;
+    // VkQueueFamilyProperties m_vk_queue_family_graphics;
     // u32 m_vk_queue_family_index_graphics;
-    // vk::QueueFamilyProperties m_vk_queue_family_present;
+    // VkQueueFamilyProperties m_vk_queue_family_present;
     // u32 m_vk_queue_family_index_present;
 
-    vk::Device m_vk_device;
-    vk::CommandPool m_vk_command_pool;
-    vk::CommandBuffer m_vk_command_buffer;
+    VkDevice m_vk_device;
+    VkCommandPool m_vk_command_pool;
+    VkCommandBuffer m_vk_command_buffer;
 
-    vk::RenderPass m_vk_render_pass;
+    VkRenderPass m_vk_render_pass;
 
-    vk::SwapchainKHR m_vk_swapchain;
-    vk::Format m_vk_swapchain_format;
-    std::vector<vk::Image> m_vk_swapchain_images;
-    std::vector<vk::ImageView> m_vk_swapchain_image_views;
-    std::vector<vk::Framebuffer> m_vk_framebuffers;
+    VkSwapchainKHR m_vk_swapchain;
+    VkFormat m_vk_swapchain_format;
+    std::vector<VkImage> m_vk_swapchain_images;
+    std::vector<VkImageView> m_vk_swapchain_image_views;
+    std::vector<VkFramebuffer> m_vk_framebuffers;
 
     static auto get_desired_instance_layers() -> std::span<const std::pair<const char*, usize>> {
         return (const std::pair<const char*, usize>[]){
@@ -800,21 +745,30 @@ private:
 
         return {};
     }
-
-    auto init_vk_pass_info() -> std::expected<void, error> { return {}; }
 };
+*/
 
 auto main() -> int {
     spdlog::set_level(spdlog::level::debug);
 
-    spdlog::debug("{}", error::make("this is a test error"));
+    spdlog::debug("{}", vxl::vk::error::make("this is a test error"));
 
     if (auto init_res = SDL_Init(SDL_INIT_VIDEO); init_res != 0) {
         spdlog::error("SDL initialisation failed, error: {}", SDL_GetError());
         return 1;
     }
 
-    auto vulkan_stuff = ({
+    auto loader = *vxl::dynamic_loader::make(std::span((const char* const[]){"libvulkan.so.1"}));
+    auto fns = vxl::vk::vulkan_functions{};
+    fns.init(loader);
+
+    auto vec = vxl::vk::get_vector(fns.vkEnumerateInstanceLayerProperties);
+
+    std::ignore = vec;
+
+    // fns.vkEnumerateInstanceLayerProperties();
+
+    /*auto vulkan_stuff = ({
         auto&& res = vulkan_stuff::make();
 
         if (!res) {
@@ -830,5 +784,5 @@ auto main() -> int {
     if (!res) {
         spdlog::error("program failed with error: {}", res.error());
         return 1;
-    }
+    }*/
 }

@@ -3,7 +3,8 @@ project(vulkan_test)
 
 set(CMAKE_CXX_STANDARD 23)
 
-option(SPDLOG_FMT_EXTERNAL ON)
+set(SPDLOG_FMT_EXTERNAL ON)
+set(STUFF_RUN_TESTS ON)
 
 find_package(Vulkan REQUIRED)
 
@@ -15,15 +16,16 @@ add_subdirectory(thirdparty/vk-bootstrap)
 
 add_executable(vulkan_test
         main.cpp
-        src/log.cpp
-        src/vulkan_functions.cpp
+        src/vxl/dyna_loader.cpp
+        src/vxl/vk/functions.cpp
+        src/vxl/vk/loggers.cpp
 )
 
 target_include_directories(vulkan_test PUBLIC
         inc)
 
 target_link_libraries(${PROJECT_NAME}
-        stf::core stf::expected stf::scope
+        stf::core stf::expected stf::intro stf::scope
         fmt::fmt spdlog::spdlog
         Vulkan::Vulkan SDL3::SDL3
         vk-bootstrap::vk-bootstrap

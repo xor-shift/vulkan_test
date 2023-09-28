@@ -1,9 +1,8 @@
-#include <log.hpp>
+#include <vxl/vk/loggers.hpp>
 
 #include <ranges>
 
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_to_string.hpp>
+#include <vulkan/vk_enum_string_helper.h>
 
 namespace {
 
@@ -99,8 +98,8 @@ auto vulkan_debug_messenger(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkD
     return (VkBool32) false;
 }
 
-void log(vk::LayerProperties const& layer, usize tabulation, spdlog::level::level_enum severity) {
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}"), "", tabulation, std::string_view(layer.layerName.data()));
+void log(VkLayerProperties const& layer, usize tabulation, spdlog::level::level_enum severity) {
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}"), "", tabulation, std::string_view(layer.layerName));
     spdlog::log(
       severity, fmt::runtime("{:\t>{}}Spec version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(layer.specVersion), VK_VERSION_MINOR(layer.specVersion),
       VK_VERSION_PATCH(layer.specVersion)
@@ -109,18 +108,18 @@ void log(vk::LayerProperties const& layer, usize tabulation, spdlog::level::leve
       severity, fmt::runtime("{:\t>{}}Impl version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(layer.implementationVersion), VK_VERSION_MINOR(layer.implementationVersion),
       VK_VERSION_PATCH(layer.implementationVersion)
     );
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Description : {}"), "", tabulation, std::string_view(layer.description.data()));
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Description : {}"), "", tabulation, std::string_view(layer.description));
 }
 
-void log(vk::ExtensionProperties const& extension, usize tabulation, spdlog::level::level_enum severity) {
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}\", layer.layerName"), "", tabulation, std::string_view(extension.extensionName.data()));
+void log(VkExtensionProperties const& extension, usize tabulation, spdlog::level::level_enum severity) {
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Name        : {}\", layer.layerName"), "", tabulation, std::string_view(extension.extensionName));
     spdlog::log(
       severity, fmt::runtime("{:\t>{}}Spec version: {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(extension.specVersion), VK_VERSION_MINOR(extension.specVersion),
       VK_VERSION_PATCH(extension.specVersion)
     );
 }
 
-void log(vk::PhysicalDeviceProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
+void log(VkPhysicalDeviceProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
     spdlog::log(
       severity, fmt::runtime("{:\t>{}}API Version   : {}.{}.{}"), "", tabulation, VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion),
       VK_VERSION_PATCH(props.apiVersion)
@@ -131,19 +130,19 @@ void log(vk::PhysicalDeviceProperties const& props, usize tabulation, spdlog::le
     );
     spdlog::log(severity, fmt::runtime("{:\t>{}}Vendor ID     : {:08X}"), "", tabulation, props.vendorID);
     spdlog::log(severity, fmt::runtime("{:\t>{}}Device ID     : {:08X}"), "", tabulation, props.deviceID);
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Type   : {}"), "", tabulation, vk::to_string(props.deviceType));
-    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Name   : {}"), "", tabulation, std::string_view(props.deviceName.data()));
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Type   : {}"), "", tabulation, props.deviceType);
+    spdlog::log(severity, fmt::runtime("{:\t>{}}Device Name   : {}"), "", tabulation, std::string_view(props.deviceName));
 }
 
-void log(vk::QueueFamilyProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
-    static constexpr std::pair<vk::QueueFlagBits, std::string_view> queue_flags_lookup[]{
-      {vk::QueueFlagBits::eGraphics, "graphics"},
-      {vk::QueueFlagBits::eCompute, "compute"},
-      {vk::QueueFlagBits::eTransfer, "transfer"},
-      {vk::QueueFlagBits::eSparseBinding, "sparse binding"},
-      {vk::QueueFlagBits::eProtected, "protected"},
-      {vk::QueueFlagBits::eVideoDecodeKHR, "video decode (KHR)"},
-      {vk::QueueFlagBits::eOpticalFlowNV, "optical flow (NV)"},
+void log(VkQueueFamilyProperties const& props, usize tabulation, spdlog::level::level_enum severity) {
+    static constexpr std::pair<VkQueueFlags, std::string_view> queue_flags_lookup[]{
+      {VK_QUEUE_GRAPHICS_BIT, "graphics"},
+      {VK_QUEUE_COMPUTE_BIT, "compute"},
+      {VK_QUEUE_TRANSFER_BIT, "transfer"},
+      {VK_QUEUE_SPARSE_BINDING_BIT, "sparse binding"},
+      {VK_QUEUE_PROTECTED_BIT, "protected"},
+      {VK_QUEUE_VIDEO_DECODE_BIT_KHR, "video decode (KHR)"},
+      {VK_QUEUE_OPTICAL_FLOW_BIT_NV, "optical flow (NV)"},
     };
 
     spdlog::log(severity, fmt::runtime("{:\t>{}}Queue flags     : {}"), "", tabulation, make_flags_long(std::span(queue_flags_lookup), props.queueFlags));

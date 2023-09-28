@@ -10,6 +10,8 @@
 #include <expected>
 #include <string_view>
 
+namespace vxl {
+
 struct dynamic_loader {
     static auto make(std::span<const char* const> names) -> std::expected<dynamic_loader, std::string_view>;
 
@@ -29,17 +31,6 @@ struct dynamic_loader {
     }
 
     ~dynamic_loader() { close_dl(m_dl); }
-
-    template<typename Fn>
-    auto getProcAddress(const char* name) const -> Fn {
-        auto* res = get_dl_symbol<Fn>(name);
-
-        if (!res) {
-            spdlog::warn("requested vulkan function \"{}\" returned nullptr", name);
-        }
-
-        return res;
-    }
 
     template<typename Sym>
     auto get_dl_symbol(const char* symbol_name) const -> Sym {
@@ -63,3 +54,5 @@ private:
 
     static void close_dl(dl_type library);
 };
+
+}
