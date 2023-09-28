@@ -1,0 +1,521 @@
+{
+  "groups": [
+    {
+      "name": "vulkan 1.0",
+      "functions": [
+        {
+          "name": "vkCreateInstance", "stage_bits": 1, "category": 2,
+          "out_index": 2,
+          "arguments": [
+            ["const VkInstanceCreateInfo*", "create_info", null],
+            ["const VkAllocationCallbacks*", "allocator", "nullptr"],
+            ["VkInstance*", "out_instance", null]
+          ]
+        },
+        {
+          "name": "vkDestroyInstance", "stage_bits": 2, "category": 1,
+          "arguments": [
+            ["VkInstance", "instance", null],
+            ["const VkAllocationCallbacks*", "allocator", "nullptr"]
+          ]
+        },
+        {"name": "vkEnumeratePhysicalDevices", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceFeatures", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceFormatProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceImageFormatProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceQueueFamilyProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceMemoryProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetInstanceProcAddr", "stage_bits": 0, "category": 0},
+        {"name": "vkGetDeviceProcAddr", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateDevice", "stage_bits": 2, "category": 0},
+        {"name": "vkDestroyDevice", "stage_bits": 6, "category": 0},
+        {"name": "vkEnumerateInstanceExtensionProperties", "stage_bits": 1, "category": 0},
+        {"name": "vkEnumerateDeviceExtensionProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkEnumerateInstanceLayerProperties", "stage_bits": 1, "category": 0},
+        {"name": "vkEnumerateDeviceLayerProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDeviceQueue", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueSubmit", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueWaitIdle", "stage_bits": 6, "category": 0},
+        {"name": "vkDeviceWaitIdle", "stage_bits": 6, "category": 0},
+        {"name": "vkAllocateMemory", "stage_bits": 6, "category": 0},
+        {"name": "vkMapMemory", "stage_bits": 6, "category": 0},
+        {"name": "vkUnmapMemory", "stage_bits": 6, "category": 0},
+        {"name": "vkFlushMappedMemoryRanges", "stage_bits": 6, "category": 0},
+        {"name": "vkInvalidateMappedMemoryRanges", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceMemoryCommitment", "stage_bits": 6, "category": 0},
+        {"name": "vkBindBufferMemory", "stage_bits": 6, "category": 0},
+        {"name": "vkBindImageMemory", "stage_bits": 6, "category": 0},
+        {"name": "vkGetBufferMemoryRequirements", "stage_bits": 6, "category": 0},
+        {"name": "vkGetImageMemoryRequirements", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateFence", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyFence", "stage_bits": 6, "category": 0},
+        {"name": "vkResetFences", "stage_bits": 6, "category": 0},
+        {"name": "vkGetFenceStatus", "stage_bits": 6, "category": 0},
+        {"name": "vkWaitForFences", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateSemaphore", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroySemaphore", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkGetEventStatus", "stage_bits": 6, "category": 0},
+        {"name": "vkSetEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkResetEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateQueryPool", "stage_bits": 6, "category": 0},
+        {"name": "vkGetQueryPoolResults", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateBufferView", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyBufferView", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateImage", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyImage", "stage_bits": 6, "category": 0},
+        {"name": "vkGetImageSubresourceLayout", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateImageView", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyImageView", "stage_bits": 6, "category": 0},
+        {"name": "vkCreatePipelineCache", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyPipelineCache", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateGraphicsPipelines", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateComputePipelines", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyPipeline", "stage_bits": 6, "category": 0},
+        {"name": "vkCreatePipelineLayout", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyPipelineLayout", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateSampler", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroySampler", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateDescriptorSetLayout", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyDescriptorSetLayout", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateDescriptorPool", "stage_bits": 6, "category": 0},
+        {"name": "vkResetDescriptorPool", "stage_bits": 6, "category": 0},
+        {"name": "vkAllocateDescriptorSets", "stage_bits": 6, "category": 0},
+        {"name": "vkFreeDescriptorSets", "stage_bits": 6, "category": 0},
+        {"name": "vkUpdateDescriptorSets", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateFramebuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyFramebuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateRenderPass", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyRenderPass", "stage_bits": 6, "category": 0},
+        {"name": "vkGetRenderAreaGranularity", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateCommandPool", "stage_bits": 6, "category": 0},
+        {"name": "vkResetCommandPool", "stage_bits": 6, "category": 0},
+        {"name": "vkAllocateCommandBuffers", "stage_bits": 6, "category": 0},
+        {"name": "vkFreeCommandBuffers", "stage_bits": 6, "category": 0},
+        {"name": "vkBeginCommandBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkEndCommandBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkResetCommandBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindPipeline", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetViewport", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetScissor", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetLineWidth", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthBias", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetBlendConstants", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthBounds", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilCompareMask", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilWriteMask", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilReference", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindDescriptorSets", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindIndexBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindVertexBuffers", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDraw", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDrawIndexed", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDrawIndirect", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDrawIndexedIndirect", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDispatch", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDispatchIndirect", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBlitImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyBufferToImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImageToBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdUpdateBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdFillBuffer", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdClearColorImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdClearDepthStencilImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdClearAttachments", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResolveImage", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResetEvent", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWaitEvents", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdPipelineBarrier", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBeginQuery", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdEndQuery", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResetQueryPool", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWriteTimestamp", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyQueryPoolResults", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdPushConstants", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBeginRenderPass", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdNextSubpass", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdEndRenderPass", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdExecuteCommands", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "vulkan 1.1",
+      "functions": [
+        {"name": "vkEnumerateInstanceVersion", "stage_bits": 1, "category": 0},
+        {"name": "vkBindBufferMemory2", "stage_bits": 6, "category": 0},
+        {"name": "vkBindImageMemory2", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceGroupPeerMemoryFeatures", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDeviceMask", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDispatchBase", "stage_bits": 6, "category": 0},
+        {"name": "vkEnumeratePhysicalDeviceGroups", "stage_bits": 2, "category": 0},
+        {"name": "vkGetImageMemoryRequirements2", "stage_bits": 6, "category": 0},
+        {"name": "vkGetBufferMemoryRequirements2", "stage_bits": 6, "category": 0},
+        {"name": "vkGetPhysicalDeviceFeatures2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceProperties2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceFormatProperties2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceImageFormatProperties2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceQueueFamilyProperties2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceMemoryProperties2", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDeviceQueue2", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateSamplerYcbcrConversion", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroySamplerYcbcrConversion", "stage_bits": 6, "category": 0},
+        {"name": "vkGetPhysicalDeviceExternalBufferProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceExternalFenceProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceExternalSemaphoreProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDescriptorSetLayoutSupport", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "vulkan 1.2",
+      "functions": [
+        {"name": "vkCmdDrawIndirectCount", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdDrawIndexedIndirectCount", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateRenderPass2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBeginRenderPass2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdNextSubpass2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdEndRenderPass2", "stage_bits": 6, "category": 0},
+        {"name": "vkResetQueryPool", "stage_bits": 6, "category": 0},
+        {"name": "vkGetSemaphoreCounterValue", "stage_bits": 6, "category": 0},
+        {"name": "vkWaitSemaphores", "stage_bits": 6, "category": 0},
+        {"name": "vkSignalSemaphore", "stage_bits": 6, "category": 0},
+        {"name": "vkGetBufferDeviceAddress", "stage_bits": 6, "category": 0},
+        {"name": "vkGetBufferOpaqueCaptureAddress", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceMemoryOpaqueCaptureAddress", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "vulkan 1.3",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceToolProperties", "stage_bits": 2, "category": 0},
+        {"name": "vkCreatePrivateDataSlot", "stage_bits": 6, "category": 0},
+        {"name": "vkDestroyPrivateDataSlot", "stage_bits": 6, "category": 0},
+        {"name": "vkSetPrivateData", "stage_bits": 6, "category": 0},
+        {"name": "vkGetPrivateData", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetEvent2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResetEvent2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWaitEvents2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdPipelineBarrier2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWriteTimestamp2", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueSubmit2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyBuffer2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImage2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyBufferToImage2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImageToBuffer2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBlitImage2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResolveImage2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBeginRendering", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdEndRendering", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetCullMode", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetFrontFace", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetPrimitiveTopology", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetViewportWithCount", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetScissorWithCount", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindVertexBuffers2", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthTestEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthWriteEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthCompareOp", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthBoundsTestEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilTestEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilOp", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetRasterizerDiscardEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthBiasEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetPrimitiveRestartEnable", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceBufferMemoryRequirements", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceImageMemoryRequirements", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceImageSparseMemoryRequirements", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_surface",
+      "functions": [
+        {"name": "vkDestroySurfaceKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceSurfaceSupportKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceSurfaceCapabilitiesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceSurfaceFormatsKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceSurfacePresentModesKHR", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_swapchain",
+      "functions": [
+        {"name": "vkCreateSwapchainKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetSwapchainImagesKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkAcquireNextImageKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkQueuePresentKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceGroupPresentCapabilitiesKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetDeviceGroupSurfacePresentModesKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetPhysicalDevicePresentRectanglesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkAcquireNextImage2KHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_display",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceDisplayPropertiesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceDisplayPlanePropertiesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDisplayPlaneSupportedDisplaysKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDisplayModePropertiesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkCreateDisplayModeKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDisplayPlaneCapabilitiesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkCreateDisplayPlaneSurfaceKHR", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_display_swapchain",
+      "functions": [
+        {"name": "vkCreateSharedSwapchainsKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_external_memory_fd",
+      "functions": [
+        {"name": "vkGetMemoryFdKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetMemoryFdPropertiesKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_external_semaphore_fd",
+      "functions": [
+        {"name": "vkImportSemaphoreFdKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetSemaphoreFdKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_direct_mode_display",
+      "functions": [
+        {"name": "vkReleaseDisplayEXT", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_display_surface_counter",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceSurfaceCapabilities2EXT", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_display_control",
+      "functions": [
+        {"name": "vkDisplayPowerControlEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkRegisterDeviceEventEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkRegisterDisplayEventEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkGetSwapchainCounterEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_discard_rectangles",
+      "functions": [
+        {"name": "vkCmdSetDiscardRectangleEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDiscardRectangleEnableEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDiscardRectangleModeEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_hdr_metadata",
+      "functions": [
+        {"name": "vkSetHdrMetadataEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_shared_presentable_image",
+      "functions": [
+        {"name": "vkGetSwapchainStatusKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_external_fence_fd",
+      "functions": [
+        {"name": "vkImportFenceFdKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkGetFenceFdKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_performance_query",
+      "functions": [
+        {"name": "vkEnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkAcquireProfilingLockKHR", "stage_bits": 6, "category": 0},
+        {"name": "vkReleaseProfilingLockKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_get_surface_capabilities2",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceSurfaceCapabilities2KHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceSurfaceFormats2KHR", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_get_display_properties2",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceDisplayProperties2KHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetPhysicalDeviceDisplayPlaneProperties2KHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDisplayModeProperties2KHR", "stage_bits": 2, "category": 0},
+        {"name": "vkGetDisplayPlaneCapabilities2KHR", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_debug_utils",
+      "functions": [
+        {"name": "vkSetDebugUtilsObjectNameEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkSetDebugUtilsObjectTagEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueBeginDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueEndDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueInsertDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBeginDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdEndDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdInsertDebugUtilsLabelEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateDebugUtilsMessengerEXT", "stage_bits": 2, "category": 0},
+        {"name": "vkDestroyDebugUtilsMessengerEXT", "stage_bits": 2, "category": 0},
+        {"name": "vkSubmitDebugUtilsMessageEXT", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_sample_locations",
+      "functions": [
+        {"name": "vkCmdSetSampleLocationsEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkGetPhysicalDeviceMultisamplePropertiesEXT", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_image_drm_format_modifier",
+      "functions": [
+        {"name": "vkGetImageDrmFormatModifierPropertiesEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_external_memory_host",
+      "functions": [
+        {"name": "vkGetMemoryHostPointerPropertiesEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_calibrated_timestamps",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT", "stage_bits": 2, "category": 0},
+        {"name": "vkGetCalibratedTimestampsEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_fragment_shading_rate",
+      "functions": [
+        {"name": "vkGetPhysicalDeviceFragmentShadingRatesKHR", "stage_bits": 2, "category": 0},
+        {"name": "vkCmdSetFragmentShadingRateKHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_headless_surface",
+      "functions": [
+        {"name": "vkCreateHeadlessSurfaceEXT", "stage_bits": 2, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_line_rasterization",
+      "functions": [
+        {"name": "vkCmdSetLineStippleEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_extended_dynamic_state",
+      "functions": [
+        {"name": "vkCmdSetCullModeEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetFrontFaceEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetPrimitiveTopologyEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetViewportWithCountEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetScissorWithCountEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBindVertexBuffers2EXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthTestEnableEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthWriteEnableEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthCompareOpEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetDepthBoundsTestEnableEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilTestEnableEXT", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdSetStencilOpEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_synchronization2",
+      "functions": [
+        {"name": "vkCmdSetEvent2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResetEvent2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWaitEvents2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdPipelineBarrier2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWriteTimestamp2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkQueueSubmit2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdWriteBufferMarker2AMD", "stage_bits": 6, "category": 0},
+        {"name": "vkGetQueueCheckpointData2NV", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_KHR_copy_commands2",
+      "functions": [
+        {"name": "vkCmdCopyBuffer2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImage2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyBufferToImage2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdCopyImageToBuffer2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdBlitImage2KHR", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdResolveImage2KHR", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_vertex_input_dynamic_state",
+      "functions": [
+        {"name": "vkCmdSetVertexInputEXT", "stage_bits": 6, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_extended_dynamic_state2",
+      "functions": [
+        {"name": "vkCmdSetPatchControlPointsEXT", "stage_bits": 4, "category": 0},
+        {"name": "vkCmdSetRasterizerDiscardEnableEXT", "stage_bits": 4, "category": 0},
+        {"name": "vkCmdSetDepthBiasEnableEXT", "stage_bits": 4, "category": 0},
+        {"name": "vkCmdSetLogicOpEXT", "stage_bits": 4, "category": 0},
+        {"name": "vkCmdSetPrimitiveRestartEnableEXT", "stage_bits": 4, "category": 0}
+      ]
+    },
+
+    {
+      "name": "extension: VK_EXT_color_write_enable",
+      "functions": [
+        {"name": "vkCmdSetColorWriteEnableEXT", "stage_bits": 4, "category": 0}
+      ]
+    }
+  ]
+}

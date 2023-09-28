@@ -762,7 +762,7 @@ auto main() -> int {
     auto fns = vxl::vk::vulkan_functions{};
     fns.init(loader);
 
-    auto vec = vxl::vk::get_vector(fns.vkEnumerateInstanceLayerProperties);
+    auto vec = vxl::vk::get_vector(fns.enumerate_instance_layer_properties());
 
     std::ignore = vec;
 

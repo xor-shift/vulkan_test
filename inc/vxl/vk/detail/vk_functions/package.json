@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "module": "nodenext",
+    "types": [
+      "node"
+    ]
+  },
+  "name": "detail",
+  "module": "generator.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^20.7.1",
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -86,7 +86,7 @@ struct fmt::formatter<vxl::vk::error> {
 
 namespace vxl::vk {
 
-template<typename Fn, typename T = std::remove_pointer_t<typename stf::intro::function_introspector<Fn>::template nth_argument<1>>>
+template<typename Fn, typename T = std::remove_pointer_t<typename stf::intro::function_introspector<Fn>::template nth_argument<0>>>
 auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) -> std::expected<std::pmr::vector<T>, VkResult> {
     auto result = VK_SUCCESS;
     auto ret = std::pmr::vector<T>{memory_resource};
@@ -94,12 +94,12 @@ auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::ge
     for (;;) {
         ret.clear();
 
-        auto property_count = (u32)0;
-        result = fn(&property_count, nullptr);
+        auto property_count = 0uz;
+        std::tie(property_count, result) = TRYX(fn(nullptr));
 
         if (result == VK_SUCCESS && property_count != 0) {
             ret.resize(property_count);
-            result = fn(&property_count, ret.data());
+            std::tie(std::ignore, result) = TRYX(fn(ret.data()));
         }
 
         if (result != VK_INCOMPLETE) {
