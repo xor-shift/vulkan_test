@@ -43,6 +43,20 @@ struct error {
     // std::expected<void, VkResult>                   : no soft-errors
     // std::expected<VkResult, VkResult>               : soft errors
 
+    static auto
+    from_vk(std::expected<void, VkResult> vk_result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
+      -> std::expected<void, error> {
+        return vk_result.transform_error([&additional, &location](VkResult result) { return error::make_vk(result, additional, location); });
+    }
+
+    template<typename T>
+        requires (!std::is_void_v<T>)
+    static auto
+    from_vk(std::expected<T, VkResult> vk_result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
+      -> std::expected<T, error> {
+        return vk_result.transform_error([&additional, &location](VkResult result) { return error::make_vk(result, additional, location); });
+    }
+
     /*template<typename T>
         requires(!std::is_void_v<T>)
     static auto from_vk(vk::ResultValue<T>&& vk_result, std::string_view additional = "no additional information", std::source_location location = std::source_location::current())
@@ -86,7 +100,8 @@ struct fmt::formatter<vxl::vk::error> {
 
 namespace vxl::vk {
 
-template<typename Fn, typename T = std::remove_pointer_t<typename stf::intro::function_introspector<Fn>::template nth_argument<0>>>
+template<typename Fn, typename T = std::remove_pointer_t<typename stf::intro::function_introspector<Fn>::template nth_argument<1>>>
+    requires (!std::is_same_v<typename stf::intro::function_introspector<Fn>::return_type, void>)
 auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) -> std::expected<std::pmr::vector<T>, VkResult> {
     auto result = VK_SUCCESS;
     auto ret = std::pmr::vector<T>{memory_resource};
@@ -94,12 +109,13 @@ auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::ge
     for (;;) {
         ret.clear();
 
-        auto property_count = 0uz;
-        std::tie(property_count, result) = TRYX(fn(nullptr));
+        auto property_count = 0u;
+        auto&& asd = fn(&property_count, nullptr);
+        result = TRYX(asd);
 
         if (result == VK_SUCCESS && property_count != 0) {
             ret.resize(property_count);
-            std::tie(std::ignore, result) = TRYX(fn(ret.data()));
+            result = TRYX(fn(&property_count, ret.data()));
         }
 
         if (result != VK_INCOMPLETE) {
@@ -109,6 +125,22 @@ auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::ge
 
     if (result != VK_SUCCESS) {
         return std::unexpected{result};
+    }
+
+    return ret;
+}
+
+template<typename Fn, typename T = std::remove_pointer_t<typename stf::intro::function_introspector<Fn>::template nth_argument<1>>>
+    requires(std::is_same_v<typename stf::intro::function_introspector<Fn>::return_type, void>)
+auto get_vector(Fn fn, std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) -> std::pmr::vector<T> {
+    auto property_count = 0u;
+    fn(&property_count, nullptr);
+
+    auto ret = std::pmr::vector<T>{property_count, {}, memory_resource};
+    fn(&property_count, ret.data());
+
+    if (property_count < ret.size()) {
+        return get_vector(fn, memory_resource);
     }
 
     return ret;

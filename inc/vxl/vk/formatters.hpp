@@ -34,4 +34,4 @@ struct vk_enum_formatter {
 ENUM_FORMATTER_FACTORY(VkPhysicalDeviceType);
 ENUM_FORMATTER_FACTORY(VkResult);
 
-#pragma pop_macro("ENUM_FORMATTER_FACTORY")#pragma once
+#pragma pop_macro("ENUM_FORMATTER_FACTORY")
