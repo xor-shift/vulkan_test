@@ -8,6 +8,9 @@ namespace vxl::vk {
 #define PTR_NAME_PAIR(_name) \
     { reinterpret_cast<void (*vulkan_functions::*)()>(&vulkan_functions::_name), #_name }
 
+#define PTR_PTR_PAIR(_name_0, _name_1) \
+    { reinterpret_cast<void (*vulkan_functions::*)()>(&vulkan_functions::_name_0), reinterpret_cast<void (*vulkan_functions::*)()>(&vulkan_functions::_name_1), }
+
 void vulkan_functions::init(PFN_vkGetInstanceProcAddr vk_get_instance_proc_addr) {
     vkGetInstanceProcAddr = vk_get_instance_proc_addr;
 
@@ -15,6 +18,16 @@ void vulkan_functions::init(PFN_vkGetInstanceProcAddr vk_get_instance_proc_addr)
 
     for (auto [ptr, name] : functions_and_names) {
         this->*ptr = vkGetInstanceProcAddr(nullptr, name);
+    }
+
+#include <vxl/vk/detail/vk_functions/generated/pre_instance_init_replace.ipp>
+
+    for (auto [ptr_dst, ptr_src] : replacement_pairs) {
+        if (ptr_dst != nullptr) {
+            continue;
+        }
+
+        std::memcpy((void*)&(this->*ptr_dst), (void*)&(this->*ptr_src), sizeof(void(*)()));
     }
 }
 
@@ -25,35 +38,15 @@ void vulkan_functions::init(VkInstance instance) {
         this->*ptr = vkGetInstanceProcAddr(instance, name);
     }
 
-    // extension: VK_EXT_extended_dynamic_state
-    vkCmdSetCullMode = vkCmdSetCullMode ?: vkCmdSetCullModeEXT;
-    vkCmdSetFrontFace = vkCmdSetFrontFace ?: vkCmdSetFrontFaceEXT;
-    vkCmdSetPrimitiveTopology = vkCmdSetPrimitiveTopology ?: vkCmdSetPrimitiveTopologyEXT;
-    vkCmdSetViewportWithCount = vkCmdSetViewportWithCount ?: vkCmdSetViewportWithCountEXT;
-    vkCmdSetScissorWithCount = vkCmdSetScissorWithCount ?: vkCmdSetScissorWithCountEXT;
-    vkCmdBindVertexBuffers2 = vkCmdBindVertexBuffers2 ?: vkCmdBindVertexBuffers2EXT;
-    vkCmdSetDepthTestEnable = vkCmdSetDepthTestEnable ?: vkCmdSetDepthTestEnableEXT;
-    vkCmdSetDepthWriteEnable = vkCmdSetDepthWriteEnable ?: vkCmdSetDepthWriteEnableEXT;
-    vkCmdSetDepthCompareOp = vkCmdSetDepthCompareOp ?: vkCmdSetDepthCompareOpEXT;
-    vkCmdSetDepthBoundsTestEnable = vkCmdSetDepthBoundsTestEnable ?: vkCmdSetDepthBoundsTestEnableEXT;
-    vkCmdSetStencilTestEnable = vkCmdSetStencilTestEnable ?: vkCmdSetStencilTestEnableEXT;
-    vkCmdSetStencilOp = vkCmdSetStencilOp ?: vkCmdSetStencilOpEXT;
+#include <vxl/vk/detail/vk_functions/generated/instance_init_replace.ipp>
 
-    // extension: VK_KHR_synchronization2
-    vkCmdSetEvent2 = vkCmdSetEvent2 ?: vkCmdSetEvent2KHR;
-    vkCmdResetEvent2 = vkCmdResetEvent2 ?: vkCmdResetEvent2KHR;
-    vkCmdWaitEvents2 = vkCmdWaitEvents2 ?: vkCmdWaitEvents2KHR;
-    vkCmdPipelineBarrier2 = vkCmdPipelineBarrier2 ?: vkCmdPipelineBarrier2KHR;
-    vkCmdWriteTimestamp2 = vkCmdWriteTimestamp2 ?: vkCmdWriteTimestamp2KHR;
-    vkQueueSubmit2 = vkQueueSubmit2 ?: vkQueueSubmit2KHR;
+    for (auto [ptr_dst, ptr_src] : replacement_pairs) {
+        if (ptr_dst != nullptr) {
+            continue;
+        }
 
-    // extension: VK_KHR_copy_commands2
-    vkCmdCopyBuffer2 = vkCmdCopyBuffer2 ?: vkCmdCopyBuffer2KHR;
-    vkCmdCopyImage2 = vkCmdCopyImage2 ?: vkCmdCopyImage2KHR;
-    vkCmdCopyBufferToImage2 = vkCmdCopyBufferToImage2 ?: vkCmdCopyBufferToImage2KHR;
-    vkCmdCopyImageToBuffer2 = vkCmdCopyImageToBuffer2 ?: vkCmdCopyImageToBuffer2KHR;
-    vkCmdBlitImage2 = vkCmdBlitImage2 ?: vkCmdBlitImage2KHR;
-    vkCmdResolveImage2 = vkCmdResolveImage2 ?: vkCmdResolveImage2KHR;
+        std::memcpy((void*)&(this->*ptr_dst), (void*)&(this->*ptr_src), sizeof(void(*)()));
+    }
 }
 
 void vulkan_functions::init(VkDevice device) {
@@ -63,40 +56,15 @@ void vulkan_functions::init(VkDevice device) {
         this->*ptr = vkGetDeviceProcAddr(device, name);
     }
 
-    // extension: VK_EXT_extended_dynamic_state
-    vkCmdSetCullMode = vkCmdSetCullMode ?: vkCmdSetCullModeEXT;
-    vkCmdSetFrontFace = vkCmdSetFrontFace ?: vkCmdSetFrontFaceEXT;
-    vkCmdSetPrimitiveTopology = vkCmdSetPrimitiveTopology ?: vkCmdSetPrimitiveTopologyEXT;
-    vkCmdSetViewportWithCount = vkCmdSetViewportWithCount ?: vkCmdSetViewportWithCountEXT;
-    vkCmdSetScissorWithCount = vkCmdSetScissorWithCount ?: vkCmdSetScissorWithCountEXT;
-    vkCmdBindVertexBuffers2 = vkCmdBindVertexBuffers2 ?: vkCmdBindVertexBuffers2EXT;
-    vkCmdSetDepthTestEnable = vkCmdSetDepthTestEnable ?: vkCmdSetDepthTestEnableEXT;
-    vkCmdSetDepthWriteEnable = vkCmdSetDepthWriteEnable ?: vkCmdSetDepthWriteEnableEXT;
-    vkCmdSetDepthCompareOp = vkCmdSetDepthCompareOp ?: vkCmdSetDepthCompareOpEXT;
-    vkCmdSetDepthBoundsTestEnable = vkCmdSetDepthBoundsTestEnable ?: vkCmdSetDepthBoundsTestEnableEXT;
-    vkCmdSetStencilTestEnable = vkCmdSetStencilTestEnable ?: vkCmdSetStencilTestEnableEXT;
-    vkCmdSetStencilOp = vkCmdSetStencilOp ?: vkCmdSetStencilOpEXT;
+#include <vxl/vk/detail/vk_functions/generated/device_init_replace.ipp>
 
-    // extension: VK_KHR_synchronization2
-    vkCmdSetEvent2 = vkCmdSetEvent2 ?: vkCmdSetEvent2KHR;
-    vkCmdResetEvent2 = vkCmdResetEvent2 ?: vkCmdResetEvent2KHR;
-    vkCmdWaitEvents2 = vkCmdWaitEvents2 ?: vkCmdWaitEvents2KHR;
-    vkCmdPipelineBarrier2 = vkCmdPipelineBarrier2 ?: vkCmdPipelineBarrier2KHR;
-    vkCmdWriteTimestamp2 = vkCmdWriteTimestamp2 ?: vkCmdWriteTimestamp2KHR;
-    vkQueueSubmit2 = vkQueueSubmit2 ?: vkQueueSubmit2KHR;
+    for (auto [ptr_dst, ptr_src] : replacement_pairs) {
+        if (ptr_dst != nullptr) {
+            continue;
+        }
 
-    // extension: VK_KHR_copy_commands2
-    vkCmdCopyBuffer2 = vkCmdCopyBuffer2 ?: vkCmdCopyBuffer2KHR;
-    vkCmdCopyImage2 = vkCmdCopyImage2 ?: vkCmdCopyImage2KHR;
-    vkCmdCopyBufferToImage2 = vkCmdCopyBufferToImage2 ?: vkCmdCopyBufferToImage2KHR;
-    vkCmdCopyImageToBuffer2 = vkCmdCopyImageToBuffer2 ?: vkCmdCopyImageToBuffer2KHR;
-    vkCmdBlitImage2 = vkCmdBlitImage2 ?: vkCmdBlitImage2KHR;
-    vkCmdResolveImage2 = vkCmdResolveImage2 ?: vkCmdResolveImage2KHR;
-
-    // extension: VK_EXT_extended_dynamic_state2
-    vkCmdSetRasterizerDiscardEnable = vkCmdSetRasterizerDiscardEnable ?: vkCmdSetRasterizerDiscardEnableEXT;
-    vkCmdSetDepthBiasEnable = vkCmdSetDepthBiasEnable ?: vkCmdSetDepthBiasEnableEXT;
-    vkCmdSetPrimitiveRestartEnable = vkCmdSetPrimitiveRestartEnable ?: vkCmdSetPrimitiveRestartEnableEXT;
+        std::memcpy((void*)&(this->*ptr_dst), (void*)&(this->*ptr_src), sizeof(void(*)()));
+    }
 }
 
 #pragma pop_macro("PTR_PTR_PAIR")

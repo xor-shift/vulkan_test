@@ -1,8 +1,5 @@
-static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and_names[] {
+static const std::pair<void (*vulkan_functions::*)(), void (*vulkan_functions::*)()> replacement_pairs[] {
   // vulkan version 1.0
-  PTR_NAME_PAIR(vkCreateInstance),
-  PTR_NAME_PAIR(vkEnumerateInstanceExtensionProperties),
-  PTR_NAME_PAIR(vkEnumerateInstanceLayerProperties),
 
   // vulkan version 1.1
 
@@ -53,10 +50,14 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_NVX_image_view_handle
 
   // extension: VK_AMD_draw_indirect_count
+  PTR_PTR_PAIR(vkCmdDrawIndirectCount, vkCmdDrawIndirectCountAMD),
+  PTR_PTR_PAIR(vkCmdDrawIndexedIndirectCount, vkCmdDrawIndexedIndirectCountAMD),
 
   // extension: VK_AMD_shader_info
 
   // extension: VK_KHR_dynamic_rendering
+  PTR_PTR_PAIR(vkCmdBeginRendering, vkCmdBeginRenderingKHR),
+  PTR_PTR_PAIR(vkCmdEndRendering, vkCmdEndRenderingKHR),
 
   // extension: VK_GGP_stream_descriptor_surface
 #ifdef VK_USE_PLATFORM_GGP
@@ -71,12 +72,16 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_KHR_get_physical_device_properties2
 
   // extension: VK_KHR_device_group
+  PTR_PTR_PAIR(vkGetDeviceGroupPeerMemoryFeatures, vkGetDeviceGroupPeerMemoryFeaturesKHR),
+  PTR_PTR_PAIR(vkCmdSetDeviceMask, vkCmdSetDeviceMaskKHR),
+  PTR_PTR_PAIR(vkCmdDispatchBase, vkCmdDispatchBaseKHR),
 
   // extension: VK_NN_vi_surface
 #ifdef VK_USE_PLATFORM_VI_NN
 #endif // VK_USE_PLATFORM_VI_NN
 
   // extension: VK_KHR_maintenance1
+  PTR_PTR_PAIR(vkTrimCommandPool, vkTrimCommandPoolKHR),
 
   // extension: VK_KHR_device_group_creation
 
@@ -101,6 +106,9 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_conditional_rendering
 
   // extension: VK_KHR_descriptor_update_template
+  PTR_PTR_PAIR(vkCreateDescriptorUpdateTemplate, vkCreateDescriptorUpdateTemplateKHR),
+  PTR_PTR_PAIR(vkDestroyDescriptorUpdateTemplate, vkDestroyDescriptorUpdateTemplateKHR),
+  PTR_PTR_PAIR(vkUpdateDescriptorSetWithTemplate, vkUpdateDescriptorSetWithTemplateKHR),
 
   // extension: VK_NV_clip_space_w_scaling
 
@@ -121,6 +129,10 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_hdr_metadata
 
   // extension: VK_KHR_create_renderpass2
+  PTR_PTR_PAIR(vkCreateRenderPass2, vkCreateRenderPass2KHR),
+  PTR_PTR_PAIR(vkCmdBeginRenderPass2, vkCmdBeginRenderPass2KHR),
+  PTR_PTR_PAIR(vkCmdNextSubpass2, vkCmdNextSubpass2KHR),
+  PTR_PTR_PAIR(vkCmdEndRenderPass2, vkCmdEndRenderPass2KHR),
 
   // extension: VK_KHR_shared_presentable_image
 
@@ -159,14 +171,21 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_sample_locations
 
   // extension: VK_KHR_get_memory_requirements2
+  PTR_PTR_PAIR(vkGetImageMemoryRequirements2, vkGetImageMemoryRequirements2KHR),
+  PTR_PTR_PAIR(vkGetBufferMemoryRequirements2, vkGetBufferMemoryRequirements2KHR),
+  PTR_PTR_PAIR(vkGetImageSparseMemoryRequirements2, vkGetImageSparseMemoryRequirements2KHR),
 
   // extension: VK_KHR_acceleration_structure
 
   // extension: VK_KHR_ray_tracing_pipeline
 
   // extension: VK_KHR_sampler_ycbcr_conversion
+  PTR_PTR_PAIR(vkCreateSamplerYcbcrConversion, vkCreateSamplerYcbcrConversionKHR),
+  PTR_PTR_PAIR(vkDestroySamplerYcbcrConversion, vkDestroySamplerYcbcrConversionKHR),
 
   // extension: VK_KHR_bind_memory2
+  PTR_PTR_PAIR(vkBindBufferMemory2, vkBindBufferMemory2KHR),
+  PTR_PTR_PAIR(vkBindImageMemory2, vkBindImageMemory2KHR),
 
   // extension: VK_EXT_image_drm_format_modifier
 
@@ -175,10 +194,14 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_NV_shading_rate_image
 
   // extension: VK_NV_ray_tracing
+  PTR_PTR_PAIR(vkGetRayTracingShaderGroupHandlesKHR, vkGetRayTracingShaderGroupHandlesNV),
 
   // extension: VK_KHR_maintenance3
+  PTR_PTR_PAIR(vkGetDescriptorSetLayoutSupport, vkGetDescriptorSetLayoutSupportKHR),
 
   // extension: VK_KHR_draw_indirect_count
+  PTR_PTR_PAIR(vkCmdDrawIndirectCount, vkCmdDrawIndirectCountKHR),
+  PTR_PTR_PAIR(vkCmdDrawIndexedIndirectCount, vkCmdDrawIndexedIndirectCountKHR),
 
   // extension: VK_EXT_external_memory_host
 
@@ -193,6 +216,9 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_NV_device_diagnostic_checkpoints
 
   // extension: VK_KHR_timeline_semaphore
+  PTR_PTR_PAIR(vkGetSemaphoreCounterValue, vkGetSemaphoreCounterValueKHR),
+  PTR_PTR_PAIR(vkWaitSemaphores, vkWaitSemaphoresKHR),
+  PTR_PTR_PAIR(vkSignalSemaphore, vkSignalSemaphoreKHR),
 
   // extension: VK_INTEL_performance_query
 
@@ -209,6 +235,7 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_KHR_fragment_shading_rate
 
   // extension: VK_EXT_buffer_device_address
+  PTR_PTR_PAIR(vkGetBufferDeviceAddress, vkGetBufferDeviceAddressEXT),
 
   // extension: VK_EXT_tooling_info
 
@@ -225,12 +252,28 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_headless_surface
 
   // extension: VK_KHR_buffer_device_address
+  PTR_PTR_PAIR(vkGetBufferDeviceAddress, vkGetBufferDeviceAddressKHR),
+  PTR_PTR_PAIR(vkGetBufferOpaqueCaptureAddress, vkGetBufferOpaqueCaptureAddressKHR),
+  PTR_PTR_PAIR(vkGetDeviceMemoryOpaqueCaptureAddress, vkGetDeviceMemoryOpaqueCaptureAddressKHR),
 
   // extension: VK_EXT_line_rasterization
 
   // extension: VK_EXT_host_query_reset
+  PTR_PTR_PAIR(vkResetQueryPool, vkResetQueryPoolEXT),
 
   // extension: VK_EXT_extended_dynamic_state
+  PTR_PTR_PAIR(vkCmdSetCullMode, vkCmdSetCullModeEXT),
+  PTR_PTR_PAIR(vkCmdSetFrontFace, vkCmdSetFrontFaceEXT),
+  PTR_PTR_PAIR(vkCmdSetPrimitiveTopology, vkCmdSetPrimitiveTopologyEXT),
+  PTR_PTR_PAIR(vkCmdSetViewportWithCount, vkCmdSetViewportWithCountEXT),
+  PTR_PTR_PAIR(vkCmdSetScissorWithCount, vkCmdSetScissorWithCountEXT),
+  PTR_PTR_PAIR(vkCmdBindVertexBuffers2, vkCmdBindVertexBuffers2EXT),
+  PTR_PTR_PAIR(vkCmdSetDepthTestEnable, vkCmdSetDepthTestEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetDepthWriteEnable, vkCmdSetDepthWriteEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetDepthCompareOp, vkCmdSetDepthCompareOpEXT),
+  PTR_PTR_PAIR(vkCmdSetDepthBoundsTestEnable, vkCmdSetDepthBoundsTestEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetStencilTestEnable, vkCmdSetStencilTestEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetStencilOp, vkCmdSetStencilOpEXT),
 
   // extension: VK_KHR_deferred_host_operations
 
@@ -238,6 +281,7 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
 
   // extension: VK_EXT_host_image_copy
 #ifdef VXL_VK_DO_NOT_DEFINE
+  PTR_PTR_PAIR(vkGetImageSubresourceLayout2KHR, vkGetImageSubresourceLayout2EXT),
 #endif // VXL_VK_DO_NOT_DEFINE
 
   // extension: VK_KHR_map_memory2
@@ -255,6 +299,10 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_acquire_drm_display
 
   // extension: VK_EXT_private_data
+  PTR_PTR_PAIR(vkCreatePrivateDataSlot, vkCreatePrivateDataSlotEXT),
+  PTR_PTR_PAIR(vkDestroyPrivateDataSlot, vkDestroyPrivateDataSlotEXT),
+  PTR_PTR_PAIR(vkSetPrivateData, vkSetPrivateDataEXT),
+  PTR_PTR_PAIR(vkGetPrivateData, vkGetPrivateDataEXT),
 
   // extension: VK_KHR_video_encode_queue
 #ifdef VK_ENABLE_BETA_EXTENSIONS
@@ -265,6 +313,12 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
 #endif // VK_USE_PLATFORM_METAL_EXT
 
   // extension: VK_KHR_synchronization2
+  PTR_PTR_PAIR(vkCmdSetEvent2, vkCmdSetEvent2KHR),
+  PTR_PTR_PAIR(vkCmdResetEvent2, vkCmdResetEvent2KHR),
+  PTR_PTR_PAIR(vkCmdWaitEvents2, vkCmdWaitEvents2KHR),
+  PTR_PTR_PAIR(vkCmdPipelineBarrier2, vkCmdPipelineBarrier2KHR),
+  PTR_PTR_PAIR(vkCmdWriteTimestamp2, vkCmdWriteTimestamp2KHR),
+  PTR_PTR_PAIR(vkQueueSubmit2, vkQueueSubmit2KHR),
 
   // extension: VK_EXT_descriptor_buffer
 
@@ -273,6 +327,12 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_mesh_shader
 
   // extension: VK_KHR_copy_commands2
+  PTR_PTR_PAIR(vkCmdCopyBuffer2, vkCmdCopyBuffer2KHR),
+  PTR_PTR_PAIR(vkCmdCopyImage2, vkCmdCopyImage2KHR),
+  PTR_PTR_PAIR(vkCmdCopyBufferToImage2, vkCmdCopyBufferToImage2KHR),
+  PTR_PTR_PAIR(vkCmdCopyImageToBuffer2, vkCmdCopyImageToBuffer2KHR),
+  PTR_PTR_PAIR(vkCmdBlitImage2, vkCmdBlitImage2KHR),
+  PTR_PTR_PAIR(vkCmdResolveImage2, vkCmdResolveImage2KHR),
 
   // extension: VK_EXT_device_fault
 
@@ -307,6 +367,9 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_pipeline_properties
 
   // extension: VK_EXT_extended_dynamic_state2
+  PTR_PTR_PAIR(vkCmdSetRasterizerDiscardEnable, vkCmdSetRasterizerDiscardEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetDepthBiasEnable, vkCmdSetDepthBiasEnableEXT),
+  PTR_PTR_PAIR(vkCmdSetPrimitiveRestartEnable, vkCmdSetPrimitiveRestartEnableEXT),
 
   // extension: VK_QNX_screen_surface
 #ifdef VK_USE_PLATFORM_SCREEN_QNX
@@ -325,6 +388,9 @@ static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and
   // extension: VK_EXT_pageable_device_local_memory
 
   // extension: VK_KHR_maintenance4
+  PTR_PTR_PAIR(vkGetDeviceBufferMemoryRequirements, vkGetDeviceBufferMemoryRequirementsKHR),
+  PTR_PTR_PAIR(vkGetDeviceImageMemoryRequirements, vkGetDeviceImageMemoryRequirementsKHR),
+  PTR_PTR_PAIR(vkGetDeviceImageSparseMemoryRequirements, vkGetDeviceImageSparseMemoryRequirementsKHR),
 
   // extension: VK_VALVE_descriptor_set_host_mapping
 

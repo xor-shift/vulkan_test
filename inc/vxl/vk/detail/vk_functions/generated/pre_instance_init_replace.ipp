@@ -1,8 +1,5 @@
-static const std::pair<void (*vulkan_functions::*)(), const char*> functions_and_names[] {
+static const std::pair<void (*vulkan_functions::*)(), void (*vulkan_functions::*)()> replacement_pairs[] {
   // vulkan version 1.0
-  PTR_NAME_PAIR(vkCreateInstance),
-  PTR_NAME_PAIR(vkEnumerateInstanceExtensionProperties),
-  PTR_NAME_PAIR(vkEnumerateInstanceLayerProperties),
 
   // vulkan version 1.1
 
