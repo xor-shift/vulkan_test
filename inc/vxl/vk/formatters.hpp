@@ -31,6 +31,8 @@ struct vk_enum_formatter {
 #pragma push_macro("ENUM_FORMATTER_FACTORY")
 #define ENUM_FORMATTER_FACTORY(_type) template<>struct fmt::formatter<_type> : vxl::detail::vk_enum_formatter<_type, string_##_type> {}
 
+ENUM_FORMATTER_FACTORY(VkColorSpaceKHR);
+ENUM_FORMATTER_FACTORY(VkFormat);
 ENUM_FORMATTER_FACTORY(VkPhysicalDeviceType);
 ENUM_FORMATTER_FACTORY(VkResult);
 

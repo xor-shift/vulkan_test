@@ -105,6 +105,165 @@ auto get_device_queue(VkDevice device, u32 queue_family_index, u32 queue_index) 
     return ret;
 }
 
+auto queue_submit() const noexcept { return [this](VkQueue queue, u32 submit_count, const VkSubmitInfo* submits, VkFence fence) noexcept { return this->queue_submit(queue, submit_count, submits, fence); }; }
+auto queue_submit(VkQueue queue, u32 submit_count, const VkSubmitInfo* submits, VkFence fence) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkQueueSubmit(queue, submit_count, submits, fence);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto device_wait_idle() const noexcept { return [this](VkDevice device) noexcept { return this->device_wait_idle(device); }; }
+auto device_wait_idle(VkDevice device) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkDeviceWaitIdle(device);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto create_fence() const noexcept { return [this](VkDevice device, const VkFenceCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_fence(device, create_info, allocator); }; }
+auto create_fence(VkDevice device, const VkFenceCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkFence*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateFence, 3);
+    const auto res = vkCreateFence(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_fence() const noexcept { return [this](VkDevice device, VkFence fence, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_fence(device, fence, allocator); }; }
+void destroy_fence(VkDevice device, VkFence fence, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyFence(device, fence, allocator); }
+
+auto reset_fences() const noexcept { return [this](VkDevice device, u32 fence_count, const VkFence* fences) noexcept { return this->reset_fences(device, fence_count, fences); }; }
+auto reset_fences(VkDevice device, u32 fence_count, const VkFence* fences) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkResetFences(device, fence_count, fences);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto wait_for_fences() const noexcept { return [this](VkDevice device, u32 fence_count, const VkFence* fences, VkBool32 wait_all, u64 timeout_ns) noexcept { return this->wait_for_fences(device, fence_count, fences, wait_all, timeout_ns); }; }
+auto wait_for_fences(VkDevice device, u32 fence_count, const VkFence* fences, VkBool32 wait_all, u64 timeout_ns) const noexcept -> std::expected<VkResult, VkResult> {
+    const auto res = vkWaitForFences(device, fence_count, fences, wait_all, timeout_ns);
+    if (!success<VK_SUCCESS, VK_TIMEOUT>(res)) {
+        return std::unexpected{res};
+    }
+    return res;
+}
+
+auto create_semaphore() const noexcept { return [this](VkDevice device, const VkSemaphoreCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_semaphore(device, create_info, allocator); }; }
+auto create_semaphore(VkDevice device, const VkSemaphoreCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkSemaphore*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateSemaphore, 3);
+    const auto res = vkCreateSemaphore(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_semaphore() const noexcept { return [this](VkDevice device, VkSemaphore semaphore, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_semaphore(device, semaphore, allocator); }; }
+void destroy_semaphore(VkDevice device, VkSemaphore semaphore, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroySemaphore(device, semaphore, allocator); }
+
+auto create_image_view() const noexcept { return [this](VkDevice device, const VkImageViewCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_image_view(device, create_info, allocator); }; }
+auto create_image_view(VkDevice device, const VkImageViewCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkImageView*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateImageView, 3);
+    const auto res = vkCreateImageView(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_image_view() const noexcept { return [this](VkDevice device, VkImageView image_view, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_image_view(device, image_view, allocator); }; }
+void destroy_image_view(VkDevice device, VkImageView image_view, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyImageView(device, image_view, allocator); }
+
+auto create_framebuffer() const noexcept { return [this](VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_framebuffer(device, create_info, allocator); }; }
+auto create_framebuffer(VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkFramebuffer*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateFramebuffer, 3);
+    const auto res = vkCreateFramebuffer(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_framebuffer() const noexcept { return [this](VkDevice device, VkFramebuffer framebuffer, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_framebuffer(device, framebuffer, allocator); }; }
+void destroy_framebuffer(VkDevice device, VkFramebuffer framebuffer, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyFramebuffer(device, framebuffer, allocator); }
+
+auto create_render_pass() const noexcept { return [this](VkDevice device, const VkRenderPassCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_render_pass(device, create_info, allocator); }; }
+auto create_render_pass(VkDevice device, const VkRenderPassCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkRenderPass*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateRenderPass, 3);
+    const auto res = vkCreateRenderPass(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_render_pass() const noexcept { return [this](VkDevice device, VkRenderPass render_pass, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_render_pass(device, render_pass, allocator); }; }
+void destroy_render_pass(VkDevice device, VkRenderPass render_pass, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyRenderPass(device, render_pass, allocator); }
+
+auto create_command_pool() const noexcept { return [this](VkDevice device, const VkCommandPoolCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_command_pool(device, create_info, allocator); }; }
+auto create_command_pool(VkDevice device, const VkCommandPoolCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkCommandPool*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateCommandPool, 3);
+    const auto res = vkCreateCommandPool(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_command_pool() const noexcept { return [this](VkDevice device, VkCommandPool command_pool, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_command_pool(device, command_pool, allocator); }; }
+void destroy_command_pool(VkDevice device, VkCommandPool command_pool, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyCommandPool(device, command_pool, allocator); }
+
+auto allocate_command_buffers() const noexcept { return [this](VkDevice device, const VkCommandBufferAllocateInfo* allocate_info, VkCommandBuffer* out_command_buffers) noexcept { return this->allocate_command_buffers(device, allocate_info, out_command_buffers); }; }
+auto allocate_command_buffers(VkDevice device, const VkCommandBufferAllocateInfo* allocate_info, VkCommandBuffer* out_command_buffers) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkAllocateCommandBuffers(device, allocate_info, out_command_buffers);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto free_command_buffers() const noexcept { return [this](VkDevice device, VkCommandPool command_pool, u32 command_buffer_count, const VkCommandBuffer* command_buffers) noexcept { return free_command_buffers(device, command_pool, command_buffer_count, command_buffers); }; }
+void free_command_buffers(VkDevice device, VkCommandPool command_pool, u32 command_buffer_count, const VkCommandBuffer* command_buffers) const noexcept { return vkFreeCommandBuffers(device, command_pool, command_buffer_count, command_buffers); }
+
+auto begin_command_buffer() const noexcept { return [this](VkCommandBuffer buffer, const VkCommandBufferBeginInfo* begin_info) noexcept { return this->begin_command_buffer(buffer, begin_info); }; }
+auto begin_command_buffer(VkCommandBuffer buffer, const VkCommandBufferBeginInfo* begin_info) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkBeginCommandBuffer(buffer, begin_info);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto end_command_buffer() const noexcept { return [this](VkCommandBuffer buffer) noexcept { return this->end_command_buffer(buffer); }; }
+auto end_command_buffer(VkCommandBuffer buffer) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkEndCommandBuffer(buffer);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto reset_command_buffer() const noexcept { return [this](VkCommandBuffer buffer, VkCommandBufferResetFlags flags = 0) noexcept { return this->reset_command_buffer(buffer, flags); }; }
+auto reset_command_buffer(VkCommandBuffer buffer, VkCommandBufferResetFlags flags = 0) const noexcept -> std::expected<void, VkResult> {
+    const auto res = vkResetCommandBuffer(buffer, flags);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return {};
+}
+
+auto cmd_begin_render_pass() const noexcept { return [this](VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) noexcept { return cmd_begin_render_pass(command_buffer, begin_info, contents); }; }
+void cmd_begin_render_pass(VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) const noexcept { return vkCmdBeginRenderPass(command_buffer, begin_info, contents); }
+
+auto cmd_end_render_pass() const noexcept { return [this](VkCommandBuffer command_buffer) noexcept { return cmd_end_render_pass(command_buffer); }; }
+void cmd_end_render_pass(VkCommandBuffer command_buffer) const noexcept { return vkCmdEndRenderPass(command_buffer); }
+
 
 // vulkan version 1.1
 
@@ -126,8 +285,77 @@ auto get_physical_device_surface_support_khr(VkPhysicalDevice physical_device, u
     return ret;
 }
 
+auto get_physical_device_surface_capabilities_khr() const noexcept { return [this](VkPhysicalDevice physical_device, VkSurfaceKHR surface) noexcept { this->get_physical_device_surface_capabilities_khr(physical_device, surface); }; }
+auto get_physical_device_surface_capabilities_khr(VkPhysicalDevice physical_device, VkSurfaceKHR surface) const noexcept -> std::expected<std::remove_pointer_t<VkSurfaceCapabilitiesKHR*>, VkResult> {
+    TYPE_3_PRELUDE(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, 2);
+    const auto res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto get_physical_device_surface_formats_khr() const noexcept { return [this](VkPhysicalDevice device, VkSurfaceKHR surface, u32* out_format_count, VkSurfaceFormatKHR* out_formats) noexcept { return this->get_physical_device_surface_formats_khr(device, surface, out_format_count, out_formats); }; }
+auto get_physical_device_surface_formats_khr(VkPhysicalDevice device, VkSurfaceKHR surface, u32* out_format_count, VkSurfaceFormatKHR* out_formats) const noexcept -> std::expected<VkResult, VkResult> {
+    const auto res = vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, out_format_count, out_formats);
+    if (!success<VK_SUCCESS, VK_INCOMPLETE>(res)) {
+        return std::unexpected{res};
+    }
+    return res;
+}
+
+auto get_physical_device_surface_present_modes_khr() const noexcept { return [this](VkPhysicalDevice device, VkSurfaceKHR surface, u32* out_mode_count, VkPresentModeKHR* out_modes) noexcept { return this->get_physical_device_surface_present_modes_khr(device, surface, out_mode_count, out_modes); }; }
+auto get_physical_device_surface_present_modes_khr(VkPhysicalDevice device, VkSurfaceKHR surface, u32* out_mode_count, VkPresentModeKHR* out_modes) const noexcept -> std::expected<VkResult, VkResult> {
+    const auto res = vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, out_mode_count, out_modes);
+    if (!success<VK_SUCCESS, VK_INCOMPLETE>(res)) {
+        return std::unexpected{res};
+    }
+    return res;
+}
+
 
 // extension: VK_KHR_swapchain
+auto create_swapchain_khr() const noexcept { return [this](VkDevice device, const VkSwapchainCreateInfoKHR* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_swapchain_khr(device, create_info, allocator); }; }
+auto create_swapchain_khr(VkDevice device, const VkSwapchainCreateInfoKHR* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkSwapchainKHR*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateSwapchainKHR, 3);
+    const auto res = vkCreateSwapchainKHR(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_swapchain_khr() const noexcept { return [this](VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_swapchain_khr(device, swapchain, allocator); }; }
+void destroy_swapchain_khr(VkDevice device, VkSwapchainKHR swapchain, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroySwapchainKHR(device, swapchain, allocator); }
+
+auto get_swapchain_images_khr() const noexcept { return [this](VkDevice device, VkSwapchainKHR swapchain, u32* out_image_count, VkImage* out_images) noexcept { return this->get_swapchain_images_khr(device, swapchain, out_image_count, out_images); }; }
+auto get_swapchain_images_khr(VkDevice device, VkSwapchainKHR swapchain, u32* out_image_count, VkImage* out_images) const noexcept -> std::expected<VkResult, VkResult> {
+    const auto res = vkGetSwapchainImagesKHR(device, swapchain, out_image_count, out_images);
+    if (!success<VK_SUCCESS, VK_INCOMPLETE>(res)) {
+        return std::unexpected{res};
+    }
+    return res;
+}
+
+auto acquire_next_image_khr() const noexcept { return [this](VkDevice device, VkSwapchainKHR swapchain, u64 timeout_ns, VkSemaphore semaphore, VkFence fence) noexcept { this->acquire_next_image_khr(device, swapchain, timeout_ns, semaphore, fence); }; }
+auto acquire_next_image_khr(VkDevice device, VkSwapchainKHR swapchain, u64 timeout_ns, VkSemaphore semaphore, VkFence fence) const noexcept -> std::expected<std::pair<std::remove_pointer_t<u32*>, VkResult>, VkResult> {
+    TYPE_3_PRELUDE(vkAcquireNextImageKHR, 5);
+    const auto res = vkAcquireNextImageKHR(device, swapchain, timeout_ns, semaphore, fence, &ret);
+    if (!success<VK_SUCCESS, VK_TIMEOUT, VK_NOT_READY, VK_SUBOPTIMAL_KHR>(res)) {
+        return std::unexpected{res};
+    }
+    return std::pair<std::remove_pointer_t<u32*>, VkResult>{ret, res};
+}
+
+auto queue_present_khr() const noexcept { return [this](VkQueue queue, const VkPresentInfoKHR* present_info) noexcept { return this->queue_present_khr(queue, present_info); }; }
+auto queue_present_khr(VkQueue queue, const VkPresentInfoKHR* present_info) const noexcept -> std::expected<VkResult, VkResult> {
+    const auto res = vkQueuePresentKHR(queue, present_info);
+    if (!success<VK_SUCCESS, VK_SUBOPTIMAL_KHR>(res)) {
+        return std::unexpected{res};
+    }
+    return res;
+}
+
 
 // extension: VK_KHR_display
 

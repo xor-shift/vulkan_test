@@ -24,7 +24,7 @@ interface function_info_cat_0 extends function_info_common {
 }
 
 interface function_info_cat_1 extends function_info_common {
-    arguments: [string, string, string | null][],
+    arguments: [string, string, string | undefined][],
 }
 
 interface function_info_cat_2 extends function_info_cat_1 {
@@ -107,11 +107,11 @@ function prettify_vk_name(name: string): string {
     return ret;
 }
 
-function generate_typed_argument_list(args: [string, string, string | null][]): string {
+function generate_typed_argument_list(args: [string, string, string | undefined][]): string {
     return args.map(arg => {
         let ret = `${arg[0]} ${arg[1]}`;
 
-        if (arg[2] !== null) {
+        if (arg[2] !== undefined) {
             ret += ` = ${arg[2]}`;
         }
 
@@ -119,7 +119,7 @@ function generate_typed_argument_list(args: [string, string, string | null][]): 
     }).join(", ");
 }
 
-function generate_typeless_argument_list(args: [string, string, string | null][]): string {
+function generate_typeless_argument_list(args: [string, string, string | undefined][]): string {
     return args.map(arg => arg[1]).join(", ");
 }
 
@@ -141,7 +141,7 @@ function generate_wrapper_cat_2(function_info: function_info_cat_2): string {
     const args_typeless = function_info.arguments.map(arg => arg[1]).join(", ");
 
     const return_type = function_info.success_results.length == 1 ? "std::expected<void, VkResult>" : "std::expected<VkResult, VkResult>";
-
+    const return_expression = function_info.success_results.length == 1 ? "{}" : "res";
 
     return `auto ${pretty_name}() const noexcept { return [this](${args_typed}) noexcept { return this->${pretty_name}(${args_typeless}); }; }
 auto ${pretty_name}(${args_typed}) const noexcept -> ${return_type} {
@@ -149,7 +149,7 @@ auto ${pretty_name}(${args_typed}) const noexcept -> ${return_type} {
     if (!success<${function_info.success_results.join(", ")}>(res)) {
         return std::unexpected{res};
     }
-    return res;
+    return ${return_expression};
 }
 `;
 }
@@ -183,6 +183,7 @@ function generate_wrapper_cat_4(function_info: function_info_cat_4): string {
 
     const base_success_type = `std::remove_pointer_t<${function_info.arguments[function_info.out_index][0]}>`;
     const success_type = function_info.success_results.length == 1 ? base_success_type : `std::pair<${base_success_type}, VkResult>`;
+    const return_expression = function_info.success_results.length == 1 ? "ret" : `${success_type}{ret, res}`;
 
     const arg_list_typeless = args_without_out.map(arg => arg[1]).join(", ");
     const arg_list_typed = generate_typed_argument_list(args_without_out);
@@ -197,7 +198,7 @@ auto ${pretty_name}(${arg_list_typed}) const noexcept -> ${return_type} {
     if (!success<${function_info.success_results.join(", ")}>(res)) {
         return std::unexpected{res};
     }
-    return ret;
+    return ${return_expression};
 }
 `
 }
