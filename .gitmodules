@@ -4,9 +4,6 @@
 [submodule "thirdparty/sdl"]
 	path = thirdparty/sdl
 	url = git@github.com:libsdl-org/SDL.git
-[submodule "thirdparty/vk-bootstrap"]
-	path = thirdparty/vk-bootstrap
-	url = git@github.com:charles-lunarg/vk-bootstrap.git
 [submodule "thirdparty/spdlog"]
 	path = thirdparty/spdlog
 	url = git@github.com:gabime/spdlog.git

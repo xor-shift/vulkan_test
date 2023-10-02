@@ -62,7 +62,7 @@
         {"name": "vkGetImageSubresourceLayout", "stage_bits": 6, "category": 0},
         {"name": "vkCreateImageView", "stage_bits": 6, "category": 4, "out_index": 3, "success_results": ["VK_SUCCESS"], "arguments": [["VkDevice", "device"], ["const VkImageViewCreateInfo*", "create_info"], ["const VkAllocationCallbacks*", "allocator", "nullptr"], ["VkImageView*", "out_image_view"]]},
         {"name": "vkDestroyImageView", "stage_bits": 6, "category": 1, "arguments": [["VkDevice", "device"], ["VkImageView", "image_view"], ["const VkAllocationCallbacks*", "allocator", "nullptr"]]},
-        {"name": "vkCreateShaderModule", "stage_bits": 6, "category": 0},
+        {"name": "vkCreateShaderModule", "stage_bits": 6, "category": 4, "out_index": 3, "success_results": ["VK_SUCCESS"], "arguments": [["VkDevice", "device"], ["const VkShaderModuleCreateInfo*", "create_info"], ["const VkAllocationCallbacks*", "allocator", "nullptr"], ["VkShaderModule*", "out_shader_module"]]},
         {"name": "vkDestroyShaderModule", "stage_bits": 6, "category": 0},
         {"name": "vkCreatePipelineCache", "stage_bits": 6, "category": 0},
         {"name": "vkDestroyPipelineCache", "stage_bits": 6, "category": 0},

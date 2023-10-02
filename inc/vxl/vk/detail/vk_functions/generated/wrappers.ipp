@@ -180,6 +180,16 @@ auto create_image_view(VkDevice device, const VkImageViewCreateInfo* create_info
 auto destroy_image_view() const noexcept { return [this](VkDevice device, VkImageView image_view, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_image_view(device, image_view, allocator); }; }
 void destroy_image_view(VkDevice device, VkImageView image_view, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyImageView(device, image_view, allocator); }
 
+auto create_shader_module() const noexcept { return [this](VkDevice device, const VkShaderModuleCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_shader_module(device, create_info, allocator); }; }
+auto create_shader_module(VkDevice device, const VkShaderModuleCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkShaderModule*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreateShaderModule, 3);
+    const auto res = vkCreateShaderModule(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
 auto create_framebuffer() const noexcept { return [this](VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_framebuffer(device, create_info, allocator); }; }
 auto create_framebuffer(VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkFramebuffer*>, VkResult> {
     TYPE_3_PRELUDE(vkCreateFramebuffer, 3);

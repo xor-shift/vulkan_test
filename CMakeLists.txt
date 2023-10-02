@@ -12,13 +12,41 @@ add_subdirectory(thirdparty/fmt)
 add_subdirectory(thirdparty/sdl)
 add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/stuff)
-add_subdirectory(thirdparty/vk-bootstrap)
+
+find_program(SPV_COMPILER glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
+message("spir-v compiler: ${SPV_COMPILER}")
+set(SHADER_FILES
+        ${CMAKE_SOURCE_DIR}/shaders/triangle.frag
+        ${CMAKE_SOURCE_DIR}/shaders/triangle.vert
+)
+
+foreach (SHADER_FILE ${SHADER_FILES})
+    get_filename_component(SHADER_FILE_NAME ${SHADER_FILE} NAME)
+    set(OUTPUT_FILE "${CMAKE_SOURCE_DIR}/run/${SHADER_FILE_NAME}.spv")
+    add_custom_command(
+            OUTPUT ${OUTPUT_FILE}
+            COMMAND ${SPV_COMPILER} -V ${SHADER_FILE} -o ${OUTPUT_FILE}
+            DEPENDS ${SHADER_FILE}
+    )
+    list(APPEND SPV_FILES ${OUTPUT_FILE})
+endforeach ()
+
+add_custom_target(${PROJECT_NAME}_shaders DEPENDS ${SPV_FILES})
 
 add_executable(vulkan_test
         main.cpp
-        src/vxl/dyna_loader.cpp
+        src/vxl/vk/things/debug_messenger.cpp
+        src/vxl/vk/things/device.cpp
+        src/vxl/vk/things/instance.cpp
+        src/vxl/vk/things/surface.cpp
         src/vxl/vk/functions.cpp
         src/vxl/vk/loggers.cpp
+        src/vxl/vk/stuff.cpp
+        src/vxl/dyna_loader.cpp
+)
+
+add_dependencies(${PROJECT_NAME}
+        ${PROJECT_NAME}_shaders
 )
 
 target_include_directories(vulkan_test PUBLIC
@@ -28,7 +56,6 @@ target_link_libraries(${PROJECT_NAME}
         stf::core stf::expected stf::intro stf::scope
         fmt::fmt spdlog::spdlog
         Vulkan::Vulkan SDL3::SDL3
-        vk-bootstrap::vk-bootstrap
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC
