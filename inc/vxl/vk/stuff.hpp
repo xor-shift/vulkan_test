@@ -5,6 +5,7 @@
 #include <vxl/vk/things/device.hpp>
 #include <vxl/vk/things/instance.hpp>
 #include <vxl/vk/things/surface.hpp>
+#include <vxl/vk/things/swapchain.hpp>
 
 #include <SDL_events.h>
 
@@ -16,7 +17,7 @@ struct vulkan_stuff {
     vulkan_stuff() = default;
 
     ~vulkan_stuff() {
-        std::ignore = destroy_vk_swapchain();
+        std::ignore = destroy_render_pass();
     }
 
     vulkan_stuff(vulkan_stuff&& other) noexcept;
@@ -49,16 +50,13 @@ private:
 
     std::shared_ptr<device_things> m_device_things = nullptr;
 
-    VkShaderModule m_vertex_shader;
-    VkShaderModule m_fragment_shader;
+    std::shared_ptr<swapchain_things> m_swapchain_things = nullptr;
 
     VkRenderPass m_vk_render_pass;
-
-    VkSwapchainKHR m_vk_swapchain;
-    VkFormat m_vk_swapchain_format;
-    std::pmr::vector<VkImage> m_vk_swapchain_images;
-    std::pmr::vector<VkImageView> m_vk_swapchain_image_views;
     std::pmr::vector<VkFramebuffer> m_vk_framebuffers;
+
+    VkShaderModule m_vertex_shader;
+    VkShaderModule m_fragment_shader;
 
     auto try_init_device(VkPhysicalDevice const& physical_device, usize queue_family_index) const -> std::expected<VkDevice, error>;
 
@@ -70,7 +68,7 @@ private:
 
     auto init_vk_command_buffer() -> std::expected<void, error>;
 
-    auto destroy_vk_swapchain() -> std::expected<void, error>;
+    auto destroy_render_pass() -> std::expected<void, error>;
 
     auto reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void, error>;
 };

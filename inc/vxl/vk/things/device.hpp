@@ -45,7 +45,7 @@ struct device_constraints {
 
     u32 m_min_vk_version = 0;
 
-    auto check_device(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error>;
+    auto check_layers_extensions(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error>;
 
     auto check(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error>;
 };

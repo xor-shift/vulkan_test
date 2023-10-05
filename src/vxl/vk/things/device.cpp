@@ -1,8 +1,10 @@
 #include <vxl/vk/things/device.hpp>
 
+#include <vxl/vk/things/utils.hpp>
+
 namespace vxl::vk {
 
-auto device_constraints::check_device(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error> {
+auto device_constraints::check_layers_extensions(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error> {
     const auto device_extensions = TRYX(layer_extension_store<>::make(
       [&vk_fns, &device](u32* out_count, VkLayerProperties* out_layers) { return vk_fns.enumerate_device_layer_properties(device, out_count, out_layers); },
       [&vk_fns, &device](const char* name, u32* out_count, VkExtensionProperties* out_extensions) {
@@ -56,9 +58,13 @@ auto device_constraints::check_device(VkPhysicalDevice device, vulkan_functions 
 auto device_constraints::check(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error> {
     // TODO?: queue merging
 
-    auto ret = TRYX(TRYX(check_device(device, vk_fns)));
+    auto ret = TRYX(TRYX(check_layers_extensions(device, vk_fns)));
 
     const auto properties = vk_fns.get_physical_device_properties(device);
+
+    if (properties.apiVersion < m_min_vk_version) {
+        return std::nullopt;
+    }
 
     const auto queue_family_properties = get_vector([&vk_fns, &device](u32* out_count, VkQueueFamilyProperties* out_properties) {
         vk_fns.get_physical_device_queue_family_properties(device, out_count, out_properties);
@@ -150,10 +156,10 @@ auto device_things::init(std::span<const VkPhysicalDeviceType> device_preference
 
     std::ranges::sort(physical_devices, [this, device_preference](auto const& lhs, auto const& rhs) {
         auto lhs_it = std::ranges::find(device_preference, m_vk_fns->get_physical_device_properties(lhs).deviceType);
-        auto lhs_idx = lhs_it == std::ranges::end(device_preference) ? std::numeric_limits<usize>::max() : std::distance(std::ranges::begin(device_preference), lhs_it);
+        auto lhs_idx = std::distance(std::ranges::begin(device_preference), lhs_it);
 
         auto rhs_it = std::ranges::find(device_preference, m_vk_fns->get_physical_device_properties(rhs).deviceType);
-        auto rhs_idx = rhs_it == std::ranges::end(device_preference) ? std::numeric_limits<usize>::max() : std::distance(std::ranges::begin(device_preference), rhs_it);
+        auto rhs_idx = std::distance(std::ranges::begin(device_preference), rhs_it);
 
         return lhs_idx < rhs_idx;
     });

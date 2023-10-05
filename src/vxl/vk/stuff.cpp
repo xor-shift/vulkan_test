@@ -74,13 +74,9 @@ auto vulkan_stuff::make() -> std::expected<vulkan_stuff, error> {
       }
     ));
 
-    // TRYX(ret.init_vk_devices_and_queues());
+    // ret.m_vertex_shader = TRYX(ret.read_shader("triangle.vert.spv"));
+    // ret.m_fragment_shader = TRYX(ret.read_shader("triangle.frag.spv"));
 
-    ret.m_vertex_shader = TRYX(ret.read_shader("triangle.vert.spv"));
-    ret.m_fragment_shader = TRYX(ret.read_shader("triangle.frag.spv"));
-
-    //TRYX(ret.init_vk_command_pool());
-    //TRYX(ret.init_vk_command_buffer());
     TRYX(ret.reinit_vk_swapchain(ret.m_window_size));
 
     return ret;
@@ -94,9 +90,7 @@ vulkan_stuff::vulkan_stuff(vulkan_stuff&& other) noexcept
     , m_window_size(other.m_window_size)
     , m_surface_things(std::move(other.m_surface_things))
     , m_device_things(std::move(other.m_device_things))
-
-    , m_vk_swapchain_images(std::move(other.m_vk_swapchain_images))
-    , m_vk_swapchain_image_views(std::move(other.m_vk_swapchain_image_views))
+    , m_swapchain_things(std::move(other.m_swapchain_things))
     , m_vk_framebuffers(std::move(other.m_vk_framebuffers)) {
 #pragma push_macro("MOVE")
 #define MOVE(_name)            \
@@ -104,9 +98,6 @@ vulkan_stuff::vulkan_stuff(vulkan_stuff&& other) noexcept
     other._name = {}
 
     MOVE(m_vk_render_pass);
-
-    MOVE(m_vk_swapchain);
-    MOVE(m_vk_swapchain_format);
 
 #pragma pop_macro("MOVE")
 }
@@ -134,7 +125,7 @@ auto vulkan_stuff::frame(VkFence render_fence, VkSemaphore present_semaphore, Vk
 
     auto swapchain_image_index = 0u;
     switch (auto&& res = TRYX(error::from_vk(
-              m_vk_fns->acquire_next_image_khr(*m_device_things, m_vk_swapchain, a_second, present_semaphore, nullptr), "could not acquire the next image in the swapchain"
+              m_vk_fns->acquire_next_image_khr(*m_device_things, *m_swapchain_things, a_second, present_semaphore, nullptr), "could not acquire the next image in the swapchain"
             ));
             res.second) {
         case VK_SUCCESS: [[fallthrough]];
@@ -187,13 +178,14 @@ auto vulkan_stuff::frame(VkFence render_fence, VkSemaphore present_semaphore, Vk
 
     TRYX(error::from_vk(m_vk_fns->queue_submit(m_device_things->queue(0), 1, &submit_info, render_fence), "failed to submit commands to the queue"));
 
+    const auto swapchain = m_swapchain_things->swapchain();
     const auto present_info = VkPresentInfoKHR{
       .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       .pNext = nullptr,
       .waitSemaphoreCount = 1,
       .pWaitSemaphores = &render_semaphore,
       .swapchainCount = 1,
-      .pSwapchains = &m_vk_swapchain,
+      .pSwapchains = &swapchain,
       .pImageIndices = &swapchain_image_index,
       .pResults = nullptr,
     };
@@ -300,12 +292,8 @@ auto vulkan_stuff::read_shader(const char* file_name) -> std::expected<VkShaderM
     return shader;
 }
 
-auto vulkan_stuff::destroy_vk_swapchain() -> std::expected<void, error> {
-    if (!(bool)m_vk_swapchain) {
-        return {};
-    }
-
-    for (auto const& framebuffer : m_vk_framebuffers) {
+auto vulkan_stuff::destroy_render_pass() -> std::expected<void, error> {
+    for (auto framebuffer : m_vk_framebuffers) {
         if (framebuffer == nullptr) {
             continue;
         }
@@ -313,109 +301,32 @@ auto vulkan_stuff::destroy_vk_swapchain() -> std::expected<void, error> {
         m_vk_fns->destroy_framebuffer(*m_device_things, framebuffer);
     }
 
-    m_vk_fns->destroy_render_pass(*m_device_things, m_vk_render_pass);
-
-    std::ranges::for_each(m_vk_swapchain_image_views, [this](auto const& view) { m_vk_fns->destroy_image_view(*m_device_things, view); });
-
-    m_vk_fns->destroy_swapchain_khr(*m_device_things, m_vk_swapchain);
+    if (m_vk_render_pass != nullptr) {
+        m_vk_fns->destroy_render_pass(*m_device_things, m_vk_render_pass);
+    }
 
     return {};
 }
 
 auto vulkan_stuff::reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void, error> {
-    const auto surface_capabilities = TRYX(
-      error::from_vk(m_vk_fns->get_physical_device_surface_capabilities_khr(*m_device_things, *m_surface_things), "could not fetch surface capabilities from the physical device")
-    );
+    auto old_swapchain = std::move(m_swapchain_things);
 
-    const auto surface_formats = TRYX(error::from_vk(
-      get_vector([this](u32* out_count, VkSurfaceFormatKHR* out_formats) {
-          return m_vk_fns->get_physical_device_surface_formats_khr(*m_device_things, *m_surface_things, out_count, out_formats);
-      }),
-      "could not fetch surface formats from the physical device"
-    ));
-
-    for (auto const& [no, format] : surface_formats | std::views::enumerate) {
-        spdlog::debug("Surface #{}:", no);
-        spdlog::debug("\tColor space: {}", format.colorSpace);
-        spdlog::debug("\tFormat     : {}", format.format);
+    if (old_swapchain) {
+        TRYX(destroy_render_pass());
     }
 
-    const auto surface_format = surface_formats[0].format == VK_FORMAT_UNDEFINED ? VK_FORMAT_R8G8B8A8_UNORM : surface_formats[0].format;
-    m_vk_swapchain_format = surface_format;
-
-    const auto swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    const auto pre_transform = (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != VkSurfaceTransformFlagBitsKHR{}
-                               ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
-                               : surface_capabilities.currentTransform;
-
-    const auto composite_alpha = (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR) != VkCompositeAlphaFlagBitsKHR{}     //
-                                 ? VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR                                                                                     //
-                                 : (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR) != VkCompositeAlphaFlagBitsKHR{}  //
-                                     ? VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR                                                                                //
-                                     : (surface_capabilities.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) != VkCompositeAlphaFlagBitsKHR{}      //
-                                         ? VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR                                                                                    //
-                                         : VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-
-    const auto swapchain_create_info = VkSwapchainCreateInfoKHR{
-      .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-      .pNext = nullptr,
-      .flags = 0,
-      .surface = *m_surface_things,
-      .minImageCount = std::clamp(3u, surface_capabilities.minImageCount, surface_capabilities.maxImageCount ?: std::numeric_limits<u32>::max()),
-      .imageFormat = surface_format,
-      .imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR,
-      .imageExtent = extent,
-      .imageArrayLayers = 1,
-      .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      .imageSharingMode = VK_SHARING_MODE_EXCLUSIVE,
-      .queueFamilyIndexCount = 0,
-      .pQueueFamilyIndices = nullptr,
-      .preTransform = pre_transform,
-      .compositeAlpha = composite_alpha,
-      .presentMode = swapchain_present_mode,
-      .clipped = VK_TRUE,
-      .oldSwapchain = m_vk_swapchain,
-    };
-
-    auto* const swapchain_temp = TRYX(error::from_vk(m_vk_fns->create_swapchain_khr(*m_device_things, &swapchain_create_info), "could not create a swapchain"));
-    TRYX(destroy_vk_swapchain());
-    m_vk_swapchain = swapchain_temp;
-
-    m_vk_swapchain_images = TRYX(error::from_vk(
-      get_vector([this](u32* out_count, VkImage* out_images) { return m_vk_fns->get_swapchain_images_khr(*m_device_things, m_vk_swapchain, out_count, out_images); }),
-      "could not get swapchain images"
+    m_swapchain_things = std::make_shared<swapchain_things>(m_vk_fns, m_device_things);
+    TRYX(m_swapchain_things->init(
+      *m_surface_things,
+      swapchain_settings{
+        .m_extent = extent,
+      },
+      old_swapchain ? *old_swapchain : (VkSwapchainKHR) nullptr
     ));
-
-    m_vk_swapchain_image_views = std::pmr::vector<VkImageView>{};
-    m_vk_swapchain_image_views.reserve(m_vk_swapchain_images.size());
-
-    for (auto const& [no, image] : m_vk_swapchain_images | std::views::enumerate) {
-        const auto image_view_create_info = VkImageViewCreateInfo{
-          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-          .pNext = nullptr,
-          .flags = 0,
-          .image = image,
-          .viewType = VK_IMAGE_VIEW_TYPE_1D,
-          .format = surface_format,
-          .components = {},
-          .subresourceRange =
-            VkImageSubresourceRange{
-              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-              .baseMipLevel = 0,
-              .levelCount = 1,
-              .baseArrayLayer = 0,
-              .layerCount = 1,
-            },
-        };
-
-        auto&& image_view = TRYX(error::from_vk(m_vk_fns->create_image_view(*m_device_things, &image_view_create_info), "could not create a swapchain image view"));
-
-        m_vk_swapchain_image_views.emplace_back(std::move(image_view));
-    }
 
     auto color_attachment = VkAttachmentDescription{
       .flags = {},                                         //
-      .format = m_vk_swapchain_format,                     //
+      .format = m_swapchain_things->format().format,       //
       .samples = VK_SAMPLE_COUNT_1_BIT,                    //
       .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,               //
       .storeOp = VK_ATTACHMENT_STORE_OP_STORE,             //
@@ -454,8 +365,8 @@ auto vulkan_stuff::reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void,
 
     m_vk_render_pass = TRYX(error::from_vk(m_vk_fns->create_render_pass(*m_device_things, &render_pass_create_info), "could not create a render pass"));
 
-    m_vk_framebuffers = std::pmr::vector<VkFramebuffer>{m_vk_swapchain_image_views.size()};
-    for (auto const& [no, view] : m_vk_swapchain_image_views | std::views::enumerate) {
+    m_vk_framebuffers = std::pmr::vector<VkFramebuffer>{m_swapchain_things->image_views().size()};
+    for (auto const& [no, view] : m_swapchain_things->image_views() | std::views::enumerate) {
         auto framebuffer_create_info = VkFramebufferCreateInfo{
           .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
           .pNext = nullptr,
