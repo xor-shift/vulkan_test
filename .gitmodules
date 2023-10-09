@@ -10,3 +10,6 @@
 [submodule "thirdparty/fmt"]
 	path = thirdparty/fmt
 	url = git@github.com:fmtlib/fmt.git
+[submodule "thirdparty/vulkan_memory_allocator"]
+	path = thirdparty/vulkan_memory_allocator
+	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

@@ -6,11 +6,20 @@
 #include <vulkan/vulkan_core.h>
 
 template<>
+struct fmt::formatter<VkExtent2D> {
+    constexpr auto parse(auto& parse_context) { return parse_context.begin(); }
+
+    constexpr auto format(VkExtent2D const& extent, auto& format_context) {
+        return fmt::format_to(format_context.out(), "{}x{}", extent.width, extent.height);
+    }
+};
+
+template<>
 struct fmt::formatter<VkExtent3D> {
     constexpr auto parse(auto& parse_context) { return parse_context.begin(); }
 
     constexpr auto format(VkExtent3D const& extent, auto& format_context) {
-        return fmt::format_to(format_context.out(), "(w: {}, h: {}, d: {})", extent.width, extent.height, extent.depth);
+        return fmt::format_to(format_context.out(), "{}x{}x{}", extent.width, extent.height, extent.depth);
     }
 };
 

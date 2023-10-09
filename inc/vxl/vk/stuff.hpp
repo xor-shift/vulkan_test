@@ -3,7 +3,9 @@
 #include <vxl/dyna_loader.hpp>
 #include <vxl/vk/things/debug_messenger.hpp>
 #include <vxl/vk/things/device.hpp>
+#include <vxl/vk/things/frame.hpp>
 #include <vxl/vk/things/instance.hpp>
+#include <vxl/vk/things/pipeline.hpp>
 #include <vxl/vk/things/surface.hpp>
 #include <vxl/vk/things/swapchain.hpp>
 
@@ -16,13 +18,11 @@ struct vulkan_stuff {
 
     vulkan_stuff() = default;
 
-    ~vulkan_stuff() {
-        std::ignore = destroy_render_pass();
-    }
+    ~vulkan_stuff();
 
     vulkan_stuff(vulkan_stuff&& other) noexcept;
 
-    auto frame(VkFence render_fence, VkSemaphore present_semaphore, VkSemaphore render_semaphore, usize frame_number) -> std::expected<bool, error>;
+    auto frame(VkBuffer vert_buffer, VkFence render_fence, VkSemaphore present_semaphore, VkSemaphore render_semaphore, usize frame_number) -> std::expected<bool, error>;
 
     auto run() -> std::expected<void, error>;
 
@@ -42,21 +42,24 @@ private:
 
     layer_extension_store<> m_device_extensions;
 
-    std::shared_ptr<instance_things> m_vk_instance = nullptr;
-    std::shared_ptr<debug_messenger_things> m_vk_debug_messenger = nullptr;
+    std::shared_ptr<instance_things> m_instance = nullptr;
+    std::shared_ptr<debug_messenger_things> m_debug_messenger = nullptr;
 
     VkExtent2D m_window_size;
-    std::shared_ptr<surface_things> m_surface_things = nullptr;
+    std::shared_ptr<surface_things> m_surface = nullptr;
 
-    std::shared_ptr<device_things> m_device_things = nullptr;
+    std::shared_ptr<device_things> m_device = nullptr;
 
-    std::shared_ptr<swapchain_things> m_swapchain_things = nullptr;
+    std::shared_ptr<swapchain_things> m_swapchain = nullptr;
 
     VkRenderPass m_vk_render_pass;
     std::pmr::vector<VkFramebuffer> m_vk_framebuffers;
 
     VkShaderModule m_vertex_shader;
     VkShaderModule m_fragment_shader;
+
+    VkPipelineLayout m_pipeline_layout;
+    std::shared_ptr<pipeline_things> m_pipeline;
 
     auto try_init_device(VkPhysicalDevice const& physical_device, usize queue_family_index) const -> std::expected<VkDevice, error>;
 

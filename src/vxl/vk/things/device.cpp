@@ -1,3 +1,6 @@
+#define VMA_IMPLEMENTATION
+#include <vk_mem_alloc.h>
+
 #include <vxl/vk/things/device.hpp>
 
 #include <vxl/vk/things/utils.hpp>
@@ -66,9 +69,7 @@ auto device_constraints::check(VkPhysicalDevice device, vulkan_functions const& 
         return std::nullopt;
     }
 
-    const auto queue_family_properties = get_vector([&vk_fns, &device](u32* out_count, VkQueueFamilyProperties* out_properties) {
-        vk_fns.get_physical_device_queue_family_properties(device, out_count, out_properties);
-    });
+    const auto queue_family_properties = get_vector<VkQueueFamilyProperties>(std::bind_front(vk_fns.get_physical_device_queue_family_properties(), device));
 
     static constexpr auto sentinel_family = std::numeric_limits<u32>::max();
 
@@ -124,6 +125,11 @@ device_things::device_things(std::shared_ptr<instance_things> vk_instance, std::
     , m_vk_instance(std::move(vk_instance)) {}
 
 device_things::~device_things() {
+    if (m_gpu_allocator != nullptr) {
+        vmaDestroyAllocator(m_gpu_allocator);
+        m_gpu_allocator = nullptr;
+    }
+
     for (auto& queue : m_queues) {
         if (queue.command_buffer == nullptr) {
             continue;
@@ -149,9 +155,8 @@ device_things::~device_things() {
 }
 
 auto device_things::init(std::span<const VkPhysicalDeviceType> device_preference, device_constraints const& device_constraints) -> std::expected<void, error> {
-    auto&& physical_devices = TRYX(error::from_vk(
-      get_vector([this](u32* out_count, VkPhysicalDevice* out_devices) { return m_vk_fns->enumerate_physical_devices(*m_vk_instance, out_count, out_devices); }),
-      "could not enumerate physical devices"
+    auto&& physical_devices = TRYX(error::from_vk(  //
+      get_vector<VkPhysicalDevice>(std::bind_front(m_vk_fns->enumerate_physical_devices(), m_vk_instance->instance())), "could not enumerate physical devices"
     ));
 
     std::ranges::sort(physical_devices, [this, device_preference](auto const& lhs, auto const& rhs) {
@@ -172,6 +177,24 @@ auto device_things::init(std::span<const VkPhysicalDeviceType> device_preference
         }
 
         TRYX(real_init(device, *check_result));
+
+        auto allocator_create_info = VmaAllocatorCreateInfo{
+          .flags = 0,
+          .physicalDevice = m_physical_device,
+          .device = m_device,
+          .preferredLargeHeapBlockSize = 0,
+          .pAllocationCallbacks = nullptr,
+          .pDeviceMemoryCallbacks = nullptr,
+          .pHeapSizeLimit = 0,
+          .pVulkanFunctions = nullptr,
+          .instance = m_vk_instance->instance(),
+          .vulkanApiVersion = VK_API_VERSION_1_2,
+          .pTypeExternalMemoryHandleTypes = nullptr,
+        };
+
+        if (auto res = vmaCreateAllocator(&allocator_create_info, &m_gpu_allocator); res != VK_SUCCESS) {
+            return std::unexpected{error::make_vk(res, "failed to create a GPU allocator")};
+        }
 
         return {};
     }

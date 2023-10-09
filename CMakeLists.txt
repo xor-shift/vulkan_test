@@ -12,6 +12,7 @@ add_subdirectory(thirdparty/fmt)
 add_subdirectory(thirdparty/sdl)
 add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/stuff)
+add_subdirectory(thirdparty/vulkan_memory_allocator)
 
 find_program(SPV_COMPILER glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
 message("spir-v compiler: ${SPV_COMPILER}")
@@ -37,8 +38,11 @@ add_executable(vulkan_test
         main.cpp
         src/vxl/vk/things/debug_messenger.cpp
         src/vxl/vk/things/device.cpp
+        src/vxl/vk/things/frame.cpp
         src/vxl/vk/things/instance.cpp
+        src/vxl/vk/things/pipeline.cpp
         src/vxl/vk/things/surface.cpp
+        src/vxl/vk/things/swapchain.cpp
         src/vxl/vk/functions.cpp
         src/vxl/vk/loggers.cpp
         src/vxl/vk/stuff.cpp
@@ -53,9 +57,9 @@ target_include_directories(vulkan_test PUBLIC
         inc)
 
 target_link_libraries(${PROJECT_NAME}
-        stf::core stf::expected stf::intro stf::scope
+        stf::blas stf::core stf::expected stf::intro stf::scope
         fmt::fmt spdlog::spdlog
-        Vulkan::Vulkan SDL3::SDL3
+        Vulkan::Vulkan GPUOpen::VulkanMemoryAllocator SDL3::SDL3
 )
 
 target_compile_definitions(${PROJECT_NAME} PUBLIC

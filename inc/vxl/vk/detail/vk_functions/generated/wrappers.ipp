@@ -190,6 +190,25 @@ auto create_shader_module(VkDevice device, const VkShaderModuleCreateInfo* creat
     return ret;
 }
 
+auto destroy_shader_module() const noexcept { return [this](VkDevice device, VkShaderModule shader, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_shader_module(device, shader, allocator); }; }
+void destroy_shader_module(VkDevice device, VkShaderModule shader, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyShaderModule(device, shader, allocator); }
+
+auto destroy_pipeline() const noexcept { return [this](VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_pipeline(device, pipeline, allocator); }; }
+void destroy_pipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyPipeline(device, pipeline, allocator); }
+
+auto create_pipeline_layout() const noexcept { return [this](VkDevice device, const VkPipelineLayoutCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_pipeline_layout(device, create_info, allocator); }; }
+auto create_pipeline_layout(VkDevice device, const VkPipelineLayoutCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkPipelineLayout*>, VkResult> {
+    TYPE_3_PRELUDE(vkCreatePipelineLayout, 3);
+    const auto res = vkCreatePipelineLayout(device, create_info, allocator, &ret);
+    if (!success<VK_SUCCESS>(res)) {
+        return std::unexpected{res};
+    }
+    return ret;
+}
+
+auto destroy_pipeline_layout() const noexcept { return [this](VkDevice device, VkPipelineLayout pipeline, const VkAllocationCallbacks* allocator = nullptr) noexcept { return destroy_pipeline_layout(device, pipeline, allocator); }; }
+void destroy_pipeline_layout(VkDevice device, VkPipelineLayout pipeline, const VkAllocationCallbacks* allocator = nullptr) const noexcept { return vkDestroyPipelineLayout(device, pipeline, allocator); }
+
 auto create_framebuffer() const noexcept { return [this](VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) noexcept { this->create_framebuffer(device, create_info, allocator); }; }
 auto create_framebuffer(VkDevice device, const VkFramebufferCreateInfo* create_info, const VkAllocationCallbacks* allocator = nullptr) const noexcept -> std::expected<std::remove_pointer_t<VkFramebuffer*>, VkResult> {
     TYPE_3_PRELUDE(vkCreateFramebuffer, 3);
@@ -267,6 +286,21 @@ auto reset_command_buffer(VkCommandBuffer buffer, VkCommandBufferResetFlags flag
     }
     return {};
 }
+
+auto cmd_bind_pipeline() const noexcept { return [this](VkCommandBuffer buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline) noexcept { return cmd_bind_pipeline(buffer, bind_point, pipeline); }; }
+void cmd_bind_pipeline(VkCommandBuffer buffer, VkPipelineBindPoint bind_point, VkPipeline pipeline) const noexcept { return vkCmdBindPipeline(buffer, bind_point, pipeline); }
+
+auto cmd_draw() const noexcept { return [this](VkCommandBuffer command_buffer, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance) noexcept { return cmd_draw(command_buffer, vertex_count, instance_count, first_vertex, first_instance); }; }
+void cmd_draw(VkCommandBuffer command_buffer, u32 vertex_count, u32 instance_count, u32 first_vertex, u32 first_instance) const noexcept { return vkCmdDraw(command_buffer, vertex_count, instance_count, first_vertex, first_instance); }
+
+auto cmd_draw_indexed() const noexcept { return [this](VkCommandBuffer command_buffer, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance) noexcept { return cmd_draw_indexed(command_buffer, index_count, instance_count, first_index, vertex_offset, first_instance); }; }
+void cmd_draw_indexed(VkCommandBuffer command_buffer, u32 index_count, u32 instance_count, u32 first_index, i32 vertex_offset, u32 first_instance) const noexcept { return vkCmdDrawIndexed(command_buffer, index_count, instance_count, first_index, vertex_offset, first_instance); }
+
+auto cmd_draw_indirect() const noexcept { return [this](VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) noexcept { return cmd_draw_indirect(command_buffer, buffer, offset, draw_count, stride); }; }
+void cmd_draw_indirect(VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) const noexcept { return vkCmdDrawIndirect(command_buffer, buffer, offset, draw_count, stride); }
+
+auto cmd_draw_indexed_indirect() const noexcept { return [this](VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) noexcept { return cmd_draw_indexed_indirect(command_buffer, buffer, offset, draw_count, stride); }; }
+void cmd_draw_indexed_indirect(VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) const noexcept { return vkCmdDrawIndexedIndirect(command_buffer, buffer, offset, draw_count, stride); }
 
 auto cmd_begin_render_pass() const noexcept { return [this](VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) noexcept { return cmd_begin_render_pass(command_buffer, begin_info, contents); }; }
 void cmd_begin_render_pass(VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) const noexcept { return vkCmdBeginRenderPass(command_buffer, begin_info, contents); }

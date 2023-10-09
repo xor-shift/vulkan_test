@@ -2,6 +2,8 @@
 
 #include <vxl/vk/things/instance.hpp>
 
+#include <vk_mem_alloc.h>
+
 namespace vxl::vk {
 
 struct queue_constraints {
@@ -50,6 +52,82 @@ struct device_constraints {
     auto check(VkPhysicalDevice device, vulkan_functions const& vk_fns) const -> std::expected<std::optional<device_check_result>, error>;
 };
 
+struct device_allocation {
+    device_allocation() = default;
+    device_allocation(device_allocation const&) = delete;
+
+    auto init(VmaAllocator allocator, usize size, VkBufferUsageFlags usage, std::span<const u32> queue_families = {}) -> std::expected<void, error> {
+        m_allocator = allocator;
+        m_allocated_size = size;
+
+        auto buffer_create_info = VkBufferCreateInfo{
+          .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .size = static_cast<VkDeviceSize>(size),
+          .usage = usage,
+          .sharingMode = queue_families.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
+          .queueFamilyIndexCount = static_cast<u32>(queue_families.size()),
+          .pQueueFamilyIndices = queue_families.empty() ? (const u32*)nullptr : queue_families.data(),
+        };
+
+        auto allocation_info = VmaAllocationCreateInfo{
+          .flags = 0,
+          .usage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+          .requiredFlags = 0,
+          .preferredFlags = 0,
+          .memoryTypeBits = 0,
+          .pool = nullptr,
+          .pUserData = nullptr,
+          .priority = 0.f,
+        };
+
+        vmaCreateBuffer(m_allocator, &buffer_create_info, &allocation_info, &m_buffer, &m_allocation, nullptr);
+
+        return {};
+    }
+
+    template<typename T>
+    auto write(T* data, usize count = 1) -> std::expected<void, error> {
+        if (sizeof(T) * count > m_allocated_size) {
+            return std::unexpected{error::make("trying to write more bytes than the buffer can hold")};
+        }
+
+        auto* gpu_data = (void*)nullptr;
+        vmaMapMemory(m_allocator, m_allocation, &gpu_data);
+
+        std::memcpy(gpu_data, static_cast<void*>(data), count * sizeof(T));
+
+        vmaUnmapMemory(m_allocator, m_allocation);
+
+        return {};
+    }
+
+    device_allocation(device_allocation&& other) noexcept
+        : m_allocated_size(other.m_allocated_size)
+        , m_allocator(other.m_allocator)
+        , m_allocation(other.m_allocation)
+        , m_buffer(other.m_buffer) {
+        other.m_allocated_size = 0;
+        other.m_allocator = nullptr;
+        other.m_allocation = nullptr;
+        other.m_buffer = nullptr;
+    }
+
+    ~device_allocation() {
+        if (m_buffer != nullptr) {
+            vmaDestroyBuffer(m_allocator, m_buffer, m_allocation);
+        }
+    }
+
+    // private:
+    usize m_allocated_size = 0uz;
+
+    VmaAllocator m_allocator = nullptr;
+    VmaAllocation m_allocation = nullptr;
+    VkBuffer m_buffer = nullptr;
+};
+
 struct device_things {
     struct queue_information {
         static constexpr auto sentinel = std::numeric_limits<u32>::max();
@@ -80,12 +158,21 @@ struct device_things {
 
     constexpr auto queue(usize index) const -> queue_information const& { return m_queues[index]; }
 
+    auto allocate(usize size, VkBufferUsageFlags usage, std::span<const u32> queue_families = {}) -> std::expected<device_allocation, error> {
+        auto ret = device_allocation{};
+        TRYX(ret.init(m_gpu_allocator, size, usage, queue_families));
+        return ret;
+    }
+
 private:
     std::shared_ptr<vulkan_functions> m_vk_fns;
     std::shared_ptr<instance_things> m_vk_instance;
 
     VkPhysicalDevice m_physical_device = nullptr;
     VkDevice m_device = nullptr;
+
+    VmaAllocator m_gpu_allocator;
+
     std::vector<queue_information> m_queues{};
 
     std::vector<std::pair<u32, VkCommandPool>> m_command_pools;
