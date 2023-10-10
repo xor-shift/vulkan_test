@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stuff/core.hpp>
-#include <stuff/expected.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -13,7 +12,7 @@
 namespace vxl {
 
 struct dynamic_loader {
-    static auto make(std::span<const char* const> names) -> std::expected<dynamic_loader, std::string_view>;
+    auto init(std::span<const char* const> names) -> std::expected<void, std::string_view>;
 
     dynamic_loader() = default;
     dynamic_loader(dynamic_loader const&) = delete;

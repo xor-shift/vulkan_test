@@ -4,26 +4,24 @@
 
 namespace vxl {
 
-auto dynamic_loader::make(std::span<const char* const> names) -> std::expected<dynamic_loader, std::string_view> {
-    auto ret = dynamic_loader{};
-
+auto dynamic_loader::init(std::span<const char* const> names) -> std::expected<void, std::string_view> {
     for (const auto* name : names) {
         spdlog::debug("attempting to open shared object: {}", name);
         if (const auto res = open_dl(name); !res) {
             continue;
         } else {
-            ret.m_dl = *res;
+            m_dl = *res;
             break;
         }
     }
 
-    if (ret.m_dl == dl_type{}) {
+    if (m_dl == dl_type{}) {
         return std::unexpected{"failed to open the vulkan shared object"};
     }
 
-    spdlog::debug("the loaded shared object is at 0x{:08X}", reinterpret_cast<std::uintptr_t>(ret.m_dl));
+    spdlog::debug("the loaded shared object is at 0x{:08X}", reinterpret_cast<std::uintptr_t>(m_dl));
 
-    return ret;
+    return {};
 }
 
 auto dynamic_loader::get_dl_symbol(const char* symbol_name) const -> void* {

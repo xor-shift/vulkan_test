@@ -74,7 +74,7 @@ void debug_messenger_things::log(spdlog::level::level_enum severity, std::string
         severity = spdlog::level::info;
     }
 
-    spdlog::log(severity, fmt::runtime("[{}]: {}"), message_type, data->pMessage);
+    spdlog::log(severity, "[{}]: {}", message_type, data->pMessage);
 }
 
 }  // namespace vxl::vk

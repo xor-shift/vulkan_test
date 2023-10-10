@@ -3,12 +3,12 @@ project(vulkan_test)
 
 set(CMAKE_CXX_STANDARD 23)
 
-set(SPDLOG_FMT_EXTERNAL ON)
+set(SPDLOG_FMT_EXTERNAL OFF)
+set(SPDLOG_USE_STD_FORMAT ON)
 set(STUFF_RUN_TESTS ON)
 
 find_package(Vulkan REQUIRED)
 
-add_subdirectory(thirdparty/fmt)
 add_subdirectory(thirdparty/sdl)
 add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/stuff)
@@ -57,8 +57,8 @@ target_include_directories(vulkan_test PUBLIC
         inc)
 
 target_link_libraries(${PROJECT_NAME}
-        stf::blas stf::core stf::expected stf::intro stf::scope
-        fmt::fmt spdlog::spdlog
+        stf::blas stf::core stf::intro stf::ply stf::scope
+        spdlog::spdlog
         Vulkan::Vulkan GPUOpen::VulkanMemoryAllocator SDL3::SDL3
 )
 

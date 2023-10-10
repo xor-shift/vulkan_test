@@ -135,7 +135,7 @@
         {"name": "vkCmdResetQueryPool", "stage_bits": 6, "category": 0},
         {"name": "vkCmdWriteTimestamp", "stage_bits": 6, "category": 0},
         {"name": "vkCmdCopyQueryPoolResults", "stage_bits": 6, "category": 0},
-        {"name": "vkCmdPushConstants", "stage_bits": 6, "category": 0},
+        {"name": "vkCmdPushConstants", "stage_bits": 6, "category": 1, "arguments": [["VkCommandBuffer", "command_buffer"], ["VkPipelineLayout", "pipeline_layout"], ["VkShaderStageFlags", "shader_stage"], ["u32", "offset"], ["u32", "size"], ["void*", "push_values"]]},
         {"name": "vkCmdBeginRenderPass", "stage_bits": 6, "category": 1, "arguments": [["VkCommandBuffer", "command_buffer"], ["const VkRenderPassBeginInfo*", "begin_info"], ["VkSubpassContents", "contents"]]},
         {"name": "vkCmdNextSubpass", "stage_bits": 6, "category": 0},
         {"name": "vkCmdEndRenderPass", "stage_bits": 6, "category": 1, "arguments": [["VkCommandBuffer", "command_buffer"]]},

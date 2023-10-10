@@ -22,6 +22,22 @@ surface_things::~surface_things() {
     }
 }
 
+auto surface_things::init(SDL_Window* sdl_window) -> std::expected<void, error> {
+    auto window_width = 0;
+    auto window_height = 0;
+    std::ignore = SDL_GetWindowSizeInPixels(sdl_window, &window_width, &window_height);
+
+    const auto res = SDL_Vulkan_CreateSurface(sdl_window, *m_vk_instance, &m_vk_surface);
+
+    if (res == SDL_FALSE || m_vk_surface == nullptr) {
+        m_vk_surface = nullptr;
+        spdlog::error("failed to create a vulkan surface through SDL, error: {}", SDL_GetError());
+        return std::unexpected{error::make("failed to create a vulkan surface through SDL")};
+    }
+
+    return {};
+}
+
 auto surface_things::init(VkExtent2D window_size) -> std::expected<void, error> {
     m_sdl_window = SDL_CreateWindow(
       "vulkan test",                                                              //
@@ -34,15 +50,7 @@ auto surface_things::init(VkExtent2D window_size) -> std::expected<void, error> 
         return std::unexpected{error::make("failed to create an SDL window")};
     }
 
-    const auto res = SDL_Vulkan_CreateSurface(m_sdl_window, *m_vk_instance, &m_vk_surface);
-
-    if (res == SDL_FALSE || m_vk_surface == nullptr) {
-        m_vk_surface = nullptr;
-        spdlog::error("failed to create a vulkan surface through SDL, error: {}", SDL_GetError());
-        return std::unexpected{error::make("failed to create a vulkan surface through SDL")};
-    }
-
-    return {};
+    return init(m_sdl_window);
 }
 
-}
+}  // namespace vxl::vk

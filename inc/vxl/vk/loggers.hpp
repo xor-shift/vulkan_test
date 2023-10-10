@@ -4,11 +4,11 @@
 
 #include <stuff/core.hpp>
 
-#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <vulkan/vulkan_core.h>
 
+#include <format>
 #include <ranges>
 
 namespace vxl {

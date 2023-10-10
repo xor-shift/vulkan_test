@@ -6,7 +6,7 @@
 namespace vxl::vk {
 
 struct pipeline_settings {
-    std::vector<VkPipelineShaderStageCreateInfo> m_shader_stages;
+    std::span<VkPipelineShaderStageCreateInfo> m_shader_stages;
     VkPipelineVertexInputStateCreateInfo m_vertex_input_info;
     VkPipelineInputAssemblyStateCreateInfo m_input_assembly;
     VkViewport m_viewport;

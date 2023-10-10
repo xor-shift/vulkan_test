@@ -2,6 +2,8 @@
 
 #include <vxl/vk/things/swapchain.hpp>
 
+#include <stuff/scope.hpp>
+
 namespace vxl::vk {
 
 swapchain_things::~swapchain_things() {

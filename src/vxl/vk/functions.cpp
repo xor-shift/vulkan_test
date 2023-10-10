@@ -1,5 +1,7 @@
 #include <vxl/vk/functions.hpp>
 
+#include <cstring>
+
 namespace vxl::vk {
 
 #pragma push_macro("PTR_NAME_PAIR")

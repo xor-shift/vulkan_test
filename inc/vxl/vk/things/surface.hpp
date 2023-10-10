@@ -20,6 +20,7 @@ struct surface_things {
     auto window() const -> SDL_Window* { return m_sdl_window; }
     auto surface() const -> VkSurfaceKHR { return m_vk_surface; }
 
+    auto init(SDL_Window* sdl_window) -> std::expected<void, error>;
     auto init(VkExtent2D window_size) -> std::expected<void, error>;
 
 private:

@@ -1,44 +1,41 @@
 #pragma once
 
-#include <fmt/core.h>
-
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
-template<>
-struct fmt::formatter<VkExtent2D> {
-    constexpr auto parse(auto& parse_context) { return parse_context.begin(); }
+#include <format>
 
-    constexpr auto format(VkExtent2D const& extent, auto& format_context) {
-        return fmt::format_to(format_context.out(), "{}x{}", extent.width, extent.height);
-    }
+template<typename CharT>
+struct std::formatter<VkExtent2D, CharT> {
+    constexpr auto parse(auto& ctx) { return ctx.begin(); }
+
+    constexpr auto format(VkExtent2D const& extent, auto& format_context) const { return std::format_to(format_context.out(), "{}x{}", extent.width, extent.height); }
 };
 
-template<>
-struct fmt::formatter<VkExtent3D> {
-    constexpr auto parse(auto& parse_context) { return parse_context.begin(); }
+template<typename CharT>
+struct std::formatter<VkExtent3D, CharT> {
+    constexpr auto parse(auto& ctx) { return ctx.begin(); }
 
-    constexpr auto format(VkExtent3D const& extent, auto& format_context) {
-        return fmt::format_to(format_context.out(), "{}x{}x{}", extent.width, extent.height, extent.depth);
-    }
+    constexpr auto format(VkExtent3D const& extent, auto& format_context) const { return std::format_to(format_context.out(), "{}x{}x{}", extent.width, extent.height, extent.depth); }
 };
 
 namespace vxl::detail {
 
 template<typename T, const char* (*ToStr)(T)>
-struct vk_enum_formatter {
-    constexpr auto parse(auto& parse_context) { return parse_context.begin(); }
-
-    constexpr auto format(T v, auto& format_context) {
-        auto str = std::string_view(ToStr(v));
-        return std::copy(str.begin(), str.end(), format_context.out());
+struct vk_enum_formatter : std::formatter<std::basic_string_view<char>, char> {
+    template<typename FormatContext>
+    constexpr auto format(T v, FormatContext&& format_context) const {
+        const auto* const str = ToStr(v);
+        return std::formatter<std::basic_string_view<char>, char>::format(str, std::forward<FormatContext>(format_context));
     }
 };
 
-}
+}  // namespace vxl::detail
 
 #pragma push_macro("ENUM_FORMATTER_FACTORY")
-#define ENUM_FORMATTER_FACTORY(_type) template<>struct fmt::formatter<_type> : vxl::detail::vk_enum_formatter<_type, string_##_type> {}
+#define ENUM_FORMATTER_FACTORY(_type) \
+    template<>          \
+    struct std::formatter<_type, char> : vxl::detail::vk_enum_formatter<_type, string_##_type> {}
 
 ENUM_FORMATTER_FACTORY(VkColorSpaceKHR);
 ENUM_FORMATTER_FACTORY(VkFormat);

@@ -302,6 +302,9 @@ void cmd_draw_indirect(VkCommandBuffer command_buffer, VkBuffer buffer, VkDevice
 auto cmd_draw_indexed_indirect() const noexcept { return [this](VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) noexcept { return cmd_draw_indexed_indirect(command_buffer, buffer, offset, draw_count, stride); }; }
 void cmd_draw_indexed_indirect(VkCommandBuffer command_buffer, VkBuffer buffer, VkDeviceSize offset, u32 draw_count, u32 stride) const noexcept { return vkCmdDrawIndexedIndirect(command_buffer, buffer, offset, draw_count, stride); }
 
+auto cmd_push_constants() const noexcept { return [this](VkCommandBuffer command_buffer, VkPipelineLayout pipeline_layout, VkShaderStageFlags shader_stage, u32 offset, u32 size, void* push_values) noexcept { return cmd_push_constants(command_buffer, pipeline_layout, shader_stage, offset, size, push_values); }; }
+void cmd_push_constants(VkCommandBuffer command_buffer, VkPipelineLayout pipeline_layout, VkShaderStageFlags shader_stage, u32 offset, u32 size, void* push_values) const noexcept { return vkCmdPushConstants(command_buffer, pipeline_layout, shader_stage, offset, size, push_values); }
+
 auto cmd_begin_render_pass() const noexcept { return [this](VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) noexcept { return cmd_begin_render_pass(command_buffer, begin_info, contents); }; }
 void cmd_begin_render_pass(VkCommandBuffer command_buffer, const VkRenderPassBeginInfo* begin_info, VkSubpassContents contents) const noexcept { return vkCmdBeginRenderPass(command_buffer, begin_info, contents); }
 

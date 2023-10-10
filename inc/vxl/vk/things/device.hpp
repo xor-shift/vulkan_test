@@ -4,6 +4,8 @@
 
 #include <vk_mem_alloc.h>
 
+#include <cstring>
+
 namespace vxl::vk {
 
 struct queue_constraints {

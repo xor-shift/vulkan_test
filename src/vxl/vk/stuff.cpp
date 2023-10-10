@@ -1,8 +1,12 @@
 #include <vxl/vk/stuff.hpp>
 
 #include <stuff/blas.hpp>
+#include <stuff/ply.hpp>
+#include <stuff/scope.hpp>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 
 namespace vxl::vk {
 
@@ -18,10 +22,11 @@ struct vert {
     stf::blas::vector<float, 4> m_position;
     stf::blas::vector<float, 4> m_normal;
     stf::blas::vector<float, 4> m_color;
+    stf::blas::vector<float, 2> m_texture_coordinate;
 
     // TODO: use stf::intro to generate descriptions automatically
-    static constexpr auto description() -> vertex_input_description<1, 3> {
-        auto ret = vertex_input_description<1, 3>{};
+    static constexpr auto description() -> vertex_input_description<1, 4> {
+        auto ret = vertex_input_description<1, 4>{};
 
         ret.bindings[0] = VkVertexInputBindingDescription{
           .binding = 0,
@@ -50,8 +55,19 @@ struct vert {
           .offset = offsetof(vert, m_color),
         };
 
+        ret.attributes[3] = VkVertexInputAttributeDescription{
+          .location = 3,
+          .binding = 0,
+          .format = VK_FORMAT_R32G32_SFLOAT,
+          .offset = offsetof(vert, m_texture_coordinate),
+        };
+
         return ret;
     }
+};
+
+struct push_constants {
+    stf::blas::matrix<float, 4, 4> m_transform;
 };
 
 static auto get_desired_device_layers() -> std::span<const std::pair<const char*, usize>> {
@@ -90,7 +106,7 @@ auto vulkan_stuff::make() -> std::expected<vulkan_stuff, error> {
 
     ret.m_window_size = {640, 360};
 
-    ret.m_dyna_loader = TRYX(dynamic_loader::make(get_vulkan_library_names()).transform_error([](auto err) { return error::make(std::string{err}); }));
+    TRYX(ret.m_dyna_loader.init(get_vulkan_library_names()).transform_error([](auto err) { return error::make(std::string{err}); }));
     ret.m_vk_fns = std::make_shared<vulkan_functions>();
 
     ret.m_vk_fns->init(ret.m_dyna_loader.get_dl_symbol<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr"));
@@ -127,14 +143,20 @@ auto vulkan_stuff::make() -> std::expected<vulkan_stuff, error> {
     ret.m_vertex_shader = TRYX(ret.read_shader("triangle.vert.spv"));
     ret.m_fragment_shader = TRYX(ret.read_shader("triangle.frag.spv"));
 
+    auto push_constant_range = VkPushConstantRange{
+      .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+      .offset = 0,
+      .size = sizeof(push_constants),
+    };
+
     const auto pipeline_layout_create_info = VkPipelineLayoutCreateInfo{
       .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
       .pNext = nullptr,
       .flags = 0,
       .setLayoutCount = 0,
       .pSetLayouts = nullptr,
-      .pushConstantRangeCount = 0,
-      .pPushConstantRanges = nullptr,
+      .pushConstantRangeCount = 1,
+      .pPushConstantRanges = &push_constant_range,
     };
 
     ret.m_pipeline_layout = TRYX(error::from_vk(ret.m_vk_fns->create_pipeline_layout(*ret.m_device, &pipeline_layout_create_info)));
@@ -185,40 +207,54 @@ vulkan_stuff::~vulkan_stuff() {
     }
 }
 
-auto vulkan_stuff::frame(VkBuffer vert_buffer, VkFence render_fence, VkSemaphore present_semaphore, VkSemaphore render_semaphore, usize frame_number)
-  -> std::expected<bool, error> {
-    static constexpr auto color_period = 120.f;
-    // const auto clear_color = std::abs(std::sin(static_cast<float>(frame_number) / color_period));
+static auto read_ply(std::filesystem::path filename) -> std::expected<std::vector<vert>, stf::ply::error> {
+    auto ifs = std::ifstream(filename);
+    auto context = stf::ply::context(std::istreambuf_iterator<char>{ifs}, std::istreambuf_iterator<char>{});
 
-    bool running = true;
+    auto header = TRYX(context.read_header());
 
-    for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
-        switch (event.type) {
-            case SDL_EVENT_QUIT: running = false; break;
-            case SDL_EVENT_WINDOW_RESIZED:
-                TRYX(error::from_vk(m_vk_fns->device_wait_idle(*m_device), "while waiting for device idle"));
+    auto vertices = std::vector<std::tuple<float, float, float>>{};
+    auto indices = std::vector<std::array<u16, 3>>{};
 
-                // TRYX(destroy_vk_swapchain());
-                m_window_size.width = static_cast<u32>(event.window.data1);
-                m_window_size.height = static_cast<u32>(event.window.data2);
-                TRYX(reinit_vk_swapchain(m_window_size));
-                break;
-            default: break;
-        }
+    for (usize i = 0; i < header.m_elements[0].m_size; i++) {
+        auto&& elem = TRYX(context.read_element<std::tuple<float, float, float>>(0));
+        vertices.emplace_back(std::move(elem));
     }
 
-    auto frame = frame_things(*m_vk_fns, *m_device, *m_swapchain, render_fence, present_semaphore, render_semaphore, m_window_size, m_vk_render_pass, m_vk_framebuffers);
+    for (usize i = 0; i < header.m_elements[1].m_size; i++) {
+        auto elem = TRYX(context.read_element<std::array<u16, 3>>(0));
+        indices.emplace_back(elem);
+    }
 
-    TRYX(frame.begin());
+    auto mesh = std::vector<vert>{};
+    mesh.reserve(indices.size() * 3);
 
-    m_vk_fns->cmd_bind_vertex_buffer(m_device->queue(0), 0, vert_buffer, 0);
+    for (auto [idx_0, idx_1, idx_2] : indices) {
+        static constexpr auto tup_to_vec = []<typename T>(std::tuple<T, T, T> tup) -> stf::blas::vector<T, 3> {
+            return stf::blas::vector<T, 3>{std::get<0>(tup), std::get<1>(tup), std::get<2>(tup)};
+        };
 
-    m_vk_fns->cmd_bind_pipeline(m_device->queue(0), VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
-    m_vk_fns->cmd_draw(m_device->queue(0), 3, 1, 0, 0);
+        static constexpr auto triangle_norm = [](auto vert_0, auto vert_1, auto vert_2) {
+            auto edge_0 = vert_1 - vert_0;
+            auto edge_1 = vert_2 - vert_0;
 
-    TRYX(frame.end());
+            auto res = normalize(cross(edge_0, edge_1));
 
-    return running;
+            return res;
+        };
+
+        auto vert_0 = tup_to_vec(vertices[idx_0]);
+        auto vert_1 = tup_to_vec(vertices[idx_1]);
+        auto vert_2 = tup_to_vec(vertices[idx_2]);
+
+        auto norm = triangle_norm(vert_0, vert_1, vert_2);
+
+        mesh.emplace_back(vert{.m_position = stf::blas::vector<float, 4>(vert_0, 1.f), .m_normal = stf::blas::vector<float, 4>(norm, 0.f)});
+        mesh.emplace_back(vert{.m_position = stf::blas::vector<float, 4>(vert_1, 1.f), .m_normal = stf::blas::vector<float, 4>(norm, 0.f)});
+        mesh.emplace_back(vert{.m_position = stf::blas::vector<float, 4>(vert_2, 1.f), .m_normal = stf::blas::vector<float, 4>(norm, 0.f)});
+    }
+
+    return mesh;
 }
 
 auto vulkan_stuff::run() -> std::expected<void, error> {
@@ -236,58 +272,138 @@ auto vulkan_stuff::run() -> std::expected<void, error> {
     auto* const render_semaphore = TRYX(error::from_vk(m_vk_fns->create_semaphore(*m_device, &semaphore_create_info), "could not create a semaphore (for render)"));
     UNNAMED = stf::scope_exit{[this, &render_semaphore] { m_vk_fns->destroy_semaphore(*m_device, render_semaphore); }};
 
-    auto allocation = TRYX(m_device->allocate(sizeof(vert) * 3, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT));
+    using mat4x4 = stf::blas::matrix<float, 4, 4>;
 
-    for (auto frame_number = 0uz;; frame_number++) {
+    auto vertices = *read_ply("./bun_zipper.ply");
+
+    /*auto vertices = std::array<vert, 3>{
+      vert{
+        .m_position{.5f, -.5f, .5f, 1.f},
+        .m_normal{0.f, 0.f, 0.f, 0.f},
+        .m_color{1.f, 0.f, 0.f, 1.f},
+      },
+      vert{
+        .m_position{-.5f, -.5f, .5f, 1.f},
+        .m_normal{0.f, 0.f, 0.f, 0.f},
+        .m_color{0.0f, 1.f, 0.f, 1.f},
+      },
+      vert{
+        .m_position{0.f, .5f, .5f, 1.f},
+        .m_normal{0.f, 0.f, 0.f, 0.f},
+        .m_color{0.f, 0.f, 1.f, 1.f},
+      },
+    };*/
+
+    auto center = stf::blas::vector<float, 3>{};
+    for (auto& vert : vertices) {
+        auto mat = mat4x4::scale(5.f, 5.f, 5.f);
+        vert.m_position = mat * vert.m_position;
+        center = center + swizzle<"xyz">(vert.m_position);
+    }
+
+    center = center / vertices.size();
+    for (auto& vert : vertices) {
+        auto sphere_point = normalize(swizzle<"xyz">(vert.m_position) - center);
+        auto u = 0.5f + std::atan2(sphere_point[2], sphere_point[0]) / (2 * std::numbers::pi_v<float>);
+        auto v = 0.5f + std::asin(sphere_point[1]) / std::numbers::pi_v<float>;
+        vert.m_texture_coordinate = {u, v};
+    }
+
+    auto allocation = TRYX(m_device->allocate(sizeof(vert) * vertices.size(), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT));
+
+    auto constants_to_push = push_constants{
+      .m_transform = mat4x4::identity(),
+    };
+
+    struct {
+        stf::blas::vector<float, 3> m_offset;
+        stf::blas::vector<float, 3> m_rotation;
+    } transform_info{};
+
+    auto running = true;
+    auto auto_rotate = false;
+    for (auto frame_number = 0uz; running; frame_number++) {
         std::ignore = m_vk_fns->wait_for_fences(*m_device, 1, &render_fence, VK_TRUE, a_second);
         std::ignore = m_vk_fns->reset_fences(*m_device, 1, &render_fence);
 
-        auto vertices = std::array<vert, 3>{
-          vert{
-            .m_position{.5f, .5f, 0.f, 1.f},
-            .m_normal{0.f, 0.f, 0.f, 0.f},
-            .m_color{1.f, 0.f, 0.f, 1.f},
-          },
-          vert{
-            .m_position{-.5f, .5f, 0.f, 1.f},
-            .m_normal{0.f, 0.f, 0.f, 0.f},
-            .m_color{0.0f, 1.f, 0.f, 1.f},
-          },
-          vert{
-            .m_position{0.f, -.5f, 0.f, 1.f},
-            .m_normal{0.f, 0.f, 0.f, 0.f},
-            .m_color{0.f, 0.f, 1.f, 1.f},
-          },
-        };
+        const auto rot_param = (static_cast<float>(frame_number % 120) / 60.f - 1.f) * std::numbers::pi_v<float>;
 
-        using mat4x4 = stf::blas::matrix<float, 4, 4>;
-        auto rotation = mat4x4::rotate(0.f, 0.f, (static_cast<float>(frame_number % 120) / 60.f - 1.f) * std::numbers::pi_v<float>);
+        auto rotation = mat4x4::rotate(rot_param, 0.f, 0.f);
 
-        for (auto& vert : vertices) {
+        /*for (auto& vert : vertices) {
             vert.m_position = rotation * vert.m_position;
-        }
+        }*/
 
-        *allocation.write(vertices.data(), 3);
+        *allocation.write(vertices.data(), vertices.size());
 
-        auto res = frame(allocation.m_buffer, render_fence, present_semaphore, render_semaphore, frame_number);
+        for (SDL_Event event; SDL_PollEvent(&event) != 0;) {
+            switch (event.type) {
+                case SDL_EVENT_QUIT: running = false; break;
+                case SDL_EVENT_WINDOW_RESIZED:
+                    TRYX(error::from_vk(m_vk_fns->device_wait_idle(*m_device), "while waiting for device idle"));
 
-        if (res) {
-            if (*res) {
-                continue;
+                    // TRYX(destroy_vk_swapchain());
+                    m_window_size.width = static_cast<u32>(event.window.data1);
+                    m_window_size.height = static_cast<u32>(event.window.data2);
+                    TRYX(reinit_vk_swapchain(m_window_size));
+                    break;
+                case SDL_EVENT_KEY_DOWN:
+                    event.key.keysym.sym;
+                    if (event.key.keysym.sym == SDLK_w) {
+                        transform_info.m_offset[2] -= 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_a) {
+                        transform_info.m_offset[0] -= 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_s) {
+                        transform_info.m_offset[2] += 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_d) {
+                        transform_info.m_offset[0] += 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_r) {
+                        transform_info.m_offset[1] += 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_f) {
+                        transform_info.m_offset[1] -= 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_e) {
+                        transform_info.m_rotation[1] += 0.05f;
+                    }
+                    if (event.key.keysym.sym == SDLK_q) {
+                        transform_info.m_rotation[1] -= 0.05f;
+                    }
+
+                    if (event.key.keysym.sym == SDLK_SPACE) {
+                        auto_rotate = !auto_rotate;
+                    }
+                    break;
+
+                default: break;
             }
-
-            break;
         }
 
-        auto const& error = res.error();
-
-        spdlog::warn("received an error: {}", error);
-
-        switch (error.m_vk_result) {
-            case VK_SUBOPTIMAL_KHR: [[fallthrough]];
-            case VK_ERROR_OUT_OF_DATE_KHR: spdlog::warn("asd"); break;
-            default: spdlog::error("the error was not a soft error, propagating"); return std::unexpected{error};
+        if (auto_rotate) {
+            transform_info.m_rotation[1] += 0.05f;
         }
+
+        constants_to_push.m_transform =  //
+          mat4x4::translate(transform_info.m_offset[0], transform_info.m_offset[1], transform_info.m_offset[2]) *
+          mat4x4::rotate(transform_info.m_rotation[0], transform_info.m_rotation[1], transform_info.m_rotation[2]);
+
+        constants_to_push.m_transform = transpose(constants_to_push.m_transform);
+
+        auto frame = frame_things(*m_vk_fns, *m_device, *m_swapchain, render_fence, present_semaphore, render_semaphore, m_window_size, m_vk_render_pass, m_vk_framebuffers);
+
+        TRYX(frame.begin());
+
+        m_vk_fns->cmd_bind_vertex_buffer(m_device->queue(0), 0, allocation.m_buffer, 0);
+
+        m_vk_fns->cmd_bind_pipeline(m_device->queue(0), VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
+        m_vk_fns->cmd_push_constants(m_device->queue(0), m_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(constants_to_push), &constants_to_push);
+        m_vk_fns->cmd_draw(m_device->queue(0), vertices.size(), 1, 0, 0);
+
+        TRYX(frame.end());
     }
 
     std::ignore = m_vk_fns->wait_for_fences(*m_device, 1, &render_fence, VK_TRUE, a_second);
@@ -301,32 +417,32 @@ auto vulkan_stuff::read_shader(const char* file_name) -> std::expected<VkShaderM
 
     auto* file = std::fopen(file_name, "rb");
     if (file == nullptr) {
-        return std::unexpected{error::make(fmt::format("failed to open {} for reading. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
+        return std::unexpected{error::make(std::format("failed to open {} for reading. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
     }
 
     if (std::fseek(file, 0, SEEK_END) != 0) {
-        return std::unexpected{error::make(fmt::format("failed to seek to the end of {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
+        return std::unexpected{error::make(std::format("failed to seek to the end of {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
     }
 
     auto file_size = 0uz;
     if (auto res = std::ftell(file); res >= 0) {
         file_size = static_cast<usize>(res);
     } else {
-        return std::unexpected{error::make(fmt::format("failed to determine the size of {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
+        return std::unexpected{error::make(std::format("failed to determine the size of {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
     }
 
     if ((file_size % sizeof(u32)) != 0 || file_size == 0) {
-        return std::unexpected{error::make(fmt::format("file {} has an invalid size {}", file_name, file_size))};
+        return std::unexpected{error::make(std::format("file {} has an invalid size {}", file_name, file_size))};
     }
 
     if (std::fseek(file, 0, SEEK_SET) != 0) {
-        return std::unexpected{error::make(fmt::format("failed to rewind {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
+        return std::unexpected{error::make(std::format("failed to rewind {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
     }
 
     auto file_contents = std::pmr::vector<u32>(file_size);
 
     if (std::fread(file_contents.data(), sizeof(u32), file_size / 4, file) != file_size / 4) {
-        return std::unexpected{error::make(fmt::format("failed to read all bytes from {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
+        return std::unexpected{error::make(std::format("failed to read all bytes from {}. errno: {}", file_name, ::strerror_r(errno, strerror_buffer, sizeof(strerror_buffer))))};
     }
 
     const auto shader_create_info = VkShaderModuleCreateInfo{
@@ -337,7 +453,7 @@ auto vulkan_stuff::read_shader(const char* file_name) -> std::expected<VkShaderM
       .pCode = file_contents.data(),
     };
 
-    auto* const shader = TRYX(error::from_vk(m_vk_fns->create_shader_module(*m_device, &shader_create_info), fmt::format("while reading shader from {}", file_name)));
+    auto* const shader = TRYX(error::from_vk(m_vk_fns->create_shader_module(*m_device, &shader_create_info), std::format("while reading shader from {}", file_name)));
 
     return shader;
 }
@@ -430,33 +546,34 @@ auto vulkan_stuff::reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void,
         };
 
         m_vk_framebuffers[no] =
-          TRYX(error::from_vk(m_vk_fns->create_framebuffer(*m_device, &framebuffer_create_info), fmt::format("could not create a framebuffer (index {})", no)));
+          TRYX(error::from_vk(m_vk_fns->create_framebuffer(*m_device, &framebuffer_create_info), std::format("could not create a framebuffer (index {})", no)));
     }
 
     const auto vertex_desc = vert::description();
 
+    auto stages = std::array<VkPipelineShaderStageCreateInfo, 2>{
+      VkPipelineShaderStageCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = m_vertex_shader,
+        .pName = "main",
+        .pSpecializationInfo = nullptr,
+      },
+      VkPipelineShaderStageCreateInfo{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = m_fragment_shader,
+        .pName = "main",
+        .pSpecializationInfo = nullptr,
+      },
+    };
+
     auto p_settings = pipeline_settings{
-      .m_shader_stages =
-        std::vector<VkPipelineShaderStageCreateInfo>{
-          VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = m_vertex_shader,
-            .pName = "main",
-            .pSpecializationInfo = nullptr,
-          },
-          VkPipelineShaderStageCreateInfo{
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = m_fragment_shader,
-            .pName = "main",
-            .pSpecializationInfo = nullptr,
-          },
-        },
+      .m_shader_stages = stages,
       .m_vertex_input_info =
         VkPipelineVertexInputStateCreateInfo{
           .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
@@ -497,7 +614,7 @@ auto vulkan_stuff::reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void,
           .depthClampEnable = VK_FALSE,
           .rasterizerDiscardEnable = VK_FALSE,
           .polygonMode = VK_POLYGON_MODE_FILL,
-          .cullMode = VK_CULL_MODE_NONE,
+          .cullMode = VK_CULL_MODE_BACK_BIT,
           .frontFace = VK_FRONT_FACE_CLOCKWISE,
           .depthBiasEnable = VK_FALSE,
           .depthBiasConstantFactor = 0.f,
