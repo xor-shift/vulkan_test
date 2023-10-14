@@ -1,5 +1,7 @@
 #include <vxl/vk/stuff.hpp>
 
+#include <vxl/vk/detail/vertex_input_describer.hpp>
+
 #include <stuff/blas.hpp>
 #include <stuff/ply.hpp>
 #include <stuff/scope.hpp>
@@ -10,59 +12,14 @@
 
 namespace vxl::vk {
 
-template<usize Bindings, usize Attributes>
-struct vertex_input_description {
-    std::array<VkVertexInputBindingDescription, Bindings> bindings;
-    std::array<VkVertexInputAttributeDescription, Attributes> attributes;
-
-    VkPipelineVertexInputStateCreateFlags flags = 0;
-};
-
 struct vert {
     stf::blas::vector<float, 4> m_position;
     stf::blas::vector<float, 4> m_normal;
     stf::blas::vector<float, 4> m_color;
     stf::blas::vector<float, 2> m_texture_coordinate;
 
-    // TODO: use stf::intro to generate descriptions automatically
-    static constexpr auto description() -> vertex_input_description<1, 4> {
-        auto ret = vertex_input_description<1, 4>{};
-
-        ret.bindings[0] = VkVertexInputBindingDescription{
-          .binding = 0,
-          .stride = sizeof(vert),
-          .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-        };
-
-        ret.attributes[0] = VkVertexInputAttributeDescription{
-          .location = 0,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-          .offset = offsetof(vert, m_position),
-        };
-
-        ret.attributes[1] = VkVertexInputAttributeDescription{
-          .location = 1,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-          .offset = offsetof(vert, m_normal),
-        };
-
-        ret.attributes[2] = VkVertexInputAttributeDescription{
-          .location = 2,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-          .offset = offsetof(vert, m_color),
-        };
-
-        ret.attributes[3] = VkVertexInputAttributeDescription{
-          .location = 3,
-          .binding = 0,
-          .format = VK_FORMAT_R32G32_SFLOAT,
-          .offset = offsetof(vert, m_texture_coordinate),
-        };
-
-        return ret;
+    static constexpr auto describe() {
+        return automatic_vertex_description<vert>();
     }
 };
 
@@ -549,7 +506,7 @@ auto vulkan_stuff::reinit_vk_swapchain(VkExtent2D extent) -> std::expected<void,
           TRYX(error::from_vk(m_vk_fns->create_framebuffer(*m_device, &framebuffer_create_info), std::format("could not create a framebuffer (index {})", no)));
     }
 
-    const auto vertex_desc = vert::description();
+    const auto vertex_desc = vert::describe();
 
     auto stages = std::array<VkPipelineShaderStageCreateInfo, 2>{
       VkPipelineShaderStageCreateInfo{

@@ -2,6 +2,8 @@
 
 #include <vxl/vk/things/instance.hpp>
 
+#include <stuff/scope/unique_resource.hpp>
+
 #include <vk_mem_alloc.h>
 
 #include <cstring>
@@ -129,6 +131,97 @@ struct device_allocation {
     VmaAllocation m_allocation = nullptr;
     VkBuffer m_buffer = nullptr;
 };
+
+/*
+struct device_image {
+    device_image(std::shared_ptr<vulkan_functions> vk_fns)
+      :m_vk_fns(std::move(vk_fns)) {}
+
+    device_image(device_image const&) = delete;
+
+    device_image(device_image&& other) {}
+
+    ~device_image() {
+        if (m_image_view != nullptr) {
+            m_image_view = nullptr;
+        }
+    }
+
+    auto init(
+      VkFormat image_format,
+      VkExtent3D extent,
+      VkImageUsageFlags image_usage,
+      VkFormat image_view_format,
+      VkImageAspectFlags image_view_aspect_flags,
+      VmaMemoryUsage memory_usage,
+      std::span<const u32> queue_families = {}) -> std::expected<void, error> {
+        auto image_create_info = VkImageCreateInfo{
+          .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .imageType = VK_IMAGE_TYPE_2D,
+          .format = image_format,
+          .extent = extent,
+          .mipLevels = 1,
+          .arrayLayers = 1,
+          .samples = VK_SAMPLE_COUNT_1_BIT,
+          .tiling = VK_IMAGE_TILING_OPTIMAL,
+          .usage = image_usage,
+          .sharingMode = queue_families.empty() ? VK_SHARING_MODE_EXCLUSIVE : VK_SHARING_MODE_CONCURRENT,
+          .queueFamilyIndexCount = static_cast<u32>(queue_families.size()),
+          .pQueueFamilyIndices = queue_families.empty() ? (const u32*)nullptr : queue_families.data(),
+          .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+
+        auto allocation_info = VmaAllocationCreateInfo{
+          .flags = 0,
+          .usage = memory_usage,
+          .requiredFlags = memory_usage == VMA_MEMORY_USAGE_GPU_ONLY ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT : (VkMemoryPropertyFlagBits)0,
+          .preferredFlags = 0,
+          .memoryTypeBits = 0,
+          .pool = nullptr,
+          .pUserData = nullptr,
+          .priority = 0.f,
+        };
+
+        auto image = (VkImage) nullptr;
+        auto allocation = (VmaAllocation) nullptr;
+        vmaCreateImage(m_gpu_allocator, &image_create_info, &allocation_info, &image, &allocation, nullptr);
+
+        auto image_view_create_info = VkImageViewCreateInfo{
+          .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0,
+          .image = nullptr,
+          .viewType = VK_IMAGE_VIEW_TYPE_2D,
+          .format = image_view_format,
+          .components = {},
+          .subresourceRange =
+            VkImageSubresourceRange{
+              .aspectMask = image_view_aspect_flags,
+              .baseMipLevel = 0,
+              .levelCount = 1,
+              .baseArrayLayer = 1,
+              .layerCount = 1,
+            },
+        };
+
+        auto image_view = TRYX(error::from_vk(m_vk_fns->create_image_view(m_device, &image_view_create_info)));
+
+      return {};
+    }
+
+    VkImage m_image;
+    VkImageView m_image_view;
+
+private:
+    std::shared_ptr<vulkan_functions> m_vk_fns {};
+
+    VkDevice m_device = nullptr;
+    VmaAllocator m_allocator = nullptr;
+    VmaAllocation m_allocation = nullptr;
+};
+*/
 
 struct device_things {
     struct queue_information {
